@@ -1160,10 +1160,6 @@
                         <p class="text-gray-500 text-xs font-semibold uppercase">MasterCard Deposit (IQD)</p>
                         <h3 class="text-lg font-bold text-blue-700 mt-1" id="depositCardIQDReport">IQD 0</h3>
                     </div>
-                    <div class="stat-card" style="border-left:4px solid #1d4ed8;">
-                        <p class="text-gray-500 text-xs font-semibold uppercase">MasterCard Deposit ($)</p>
-                        <h3 class="text-lg font-bold text-blue-800 mt-1" id="depositCardUSDReport">$0</h3>
-                    </div>
                 </div>
             </div>
 
@@ -1248,16 +1244,14 @@
                                 <th data-i18n="col_name">Name</th>
                                 <th>Price (IQD)</th>
                                 <th>Price ($)</th>
-                                <th data-i18n="col_quantity">Qty</th>
-                                <th>Total (IQD)</th>
-                                <th>Total ($)</th>
+                                <th>Notes</th>
                                 <th data-i18n="col_date">Date</th>
                                 <th data-i18n="col_action">Action</th>
                             </tr>
                         </thead>
                         <tbody id="purchasesTable">
                             <tr>
-                                <td colspan="9" class="text-center text-gray-500 py-8">No purchases yet</td>
+                                <td colspan="7" class="text-center text-gray-500 py-8">No purchases yet</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1394,10 +1388,10 @@
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                             <div style="position:relative;">
                                 <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.8rem;">IQD</span>
-                                <input type="number" id="reserveDepositCashIQD" min="0" placeholder="0" step="1"
+                                <input type="text" inputmode="numeric" id="reserveDepositCashIQD" placeholder="0"
                                     style="padding-left:46px;width:100%;"
                                     class="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500"
-                                    oninput="lockDepositField('reserveDepositCashIQD','reserveDepositCashUSD')">
+                                    oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');lockDepositField('reserveDepositCashIQD','reserveDepositCashUSD')">
                             </div>
                             <div style="position:relative;">
                                 <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.8rem;">$</span>
@@ -1408,28 +1402,20 @@
                             </div>
                         </div>
                     </div>
-                    <!-- MasterCard -->
+                    <!-- MasterCard (IQD only) -->
                     <div>
                         <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
                             <i class="fas fa-credit-card" style="color:#2563eb;font-size:0.9rem;"></i>
                             <span style="font-weight:700;font-size:0.82rem;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">MasterCard</span>
                         </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                            <div style="position:relative;">
-                                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.8rem;">IQD</span>
-                                <input type="number" id="reserveDepositCardIQD" min="0" placeholder="0" step="1"
-                                    style="padding-left:46px;width:100%;"
-                                    class="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500"
-                                    oninput="lockDepositField('reserveDepositCardIQD','reserveDepositCardUSD')">
-                            </div>
-                            <div style="position:relative;">
-                                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.8rem;">$</span>
-                                <input type="number" id="reserveDepositCardUSD" min="0" placeholder="0.00" step="0.01"
-                                    style="padding-left:28px;width:100%;"
-                                    class="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500"
-                                    oninput="lockDepositField('reserveDepositCardUSD','reserveDepositCardIQD')">
-                            </div>
+                        <div style="position:relative;">
+                            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.8rem;">IQD</span>
+                            <input type="text" inputmode="numeric" id="reserveDepositCardIQD" placeholder="0"
+                                style="padding-left:46px;width:100%;"
+                                class="px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500"
+                                oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')">
                         </div>
+                        <input type="hidden" id="reserveDepositCardUSD" value="0">
                     </div>
                 </div>
                 <div class="flex gap-3">
@@ -1481,7 +1467,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div class="input-group">
                         <label data-i18n="label_price_per_night">Price per Night *</label>
-                        <input type="number" id="roomPrice" step="0.01" placeholder="0.00" required>
+                        <input type="text" inputmode="numeric" id="roomPrice" placeholder="0" required oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')">
                     </div>
                     <div class="input-group">
                         <label data-i18n="label_capacity">Capacity</label>
@@ -1723,10 +1709,10 @@
                             oninput="this.value=this.value.replace(/[^0-9.]/g,'')">
                     </div>
                 </div>
-                <p style="font-size:0.75rem;color:#9ca3af;margin:4px 0 16px;">Fill at least one price field.</p>
+                <p style="font-size:0.75rem;color:#9ca3af;margin:4px 0 12px;">Fill at least one price field.</p>
                 <div class="input-group">
-                    <label data-i18n="label_quantity_opt">Quantity</label>
-                    <input type="number" id="purchaseQuantity" min="1" value="1">
+                    <label>Notes</label>
+                    <input type="text" id="purchaseNotes" placeholder="Optional notes">
                 </div>
                 <div class="flex gap-4">
                     <button type="submit" class="btn btn-success flex-1">
@@ -1874,7 +1860,7 @@
                                 <label data-i18n="label_price_iqd">Price (IQD)</label>
                                 <div style="position: relative;">
                                     <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #6b7280; font-weight: 600; font-size: 0.85rem;">IQD</span>
-                                    <input type="number" id="basePriceIQD" step="0.01" placeholder="0" style="padding-left: 52px;" oninput="lockOtherPriceField('basePriceIQD','basePriceUSD')">
+                                    <input type="text" inputmode="numeric" id="basePriceIQD" placeholder="0" style="padding-left: 52px;" oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');lockOtherPriceField('basePriceIQD','basePriceUSD')">
                                 </div>
                             </div>
                             <div class="input-group" style="margin-bottom: 0;">
@@ -1920,7 +1906,7 @@
                                 <div class="input-group" style="margin-bottom:0;">
                                     <div style="position:relative;">
                                         <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">IQD</span>
-                                        <input type="number" id="checkInDepositCashIQD" step="1" min="0" placeholder="0" style="padding-left:52px;" oninput="lockDepositField('checkInDepositCashIQD','checkInDepositCashUSD')">
+                                        <input type="text" inputmode="numeric" id="checkInDepositCashIQD" placeholder="0" style="padding-left:52px;" oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');lockDepositField('checkInDepositCashIQD','checkInDepositCashUSD')">
                                     </div>
                                 </div>
                                 <div class="input-group" style="margin-bottom:0;">
@@ -1931,26 +1917,17 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- MasterCard -->
+                        <!-- MasterCard (IQD only) -->
                         <div>
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                                 <i class="fas fa-credit-card" style="color:#2563eb;font-size:1rem;"></i>
                                 <span style="font-weight:700;font-size:0.88rem;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">MasterCard</span>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div class="input-group" style="margin-bottom:0;">
-                                    <div style="position:relative;">
-                                        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">IQD</span>
-                                        <input type="number" id="checkInDepositCardIQD" step="1" min="0" placeholder="0" style="padding-left:52px;" oninput="lockDepositField('checkInDepositCardIQD','checkInDepositCardUSD')">
-                                    </div>
-                                </div>
-                                <div class="input-group" style="margin-bottom:0;">
-                                    <div style="position:relative;">
-                                        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">$</span>
-                                        <input type="number" id="checkInDepositCardUSD" step="0.01" min="0" placeholder="0.00" style="padding-left:36px;" oninput="lockDepositField('checkInDepositCardUSD','checkInDepositCardIQD')">
-                                    </div>
-                                </div>
+                            <div style="position:relative;">
+                                <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">IQD</span>
+                                <input type="text" inputmode="numeric" id="checkInDepositCardIQD" placeholder="0" style="padding-left:52px;" oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')">
                             </div>
+                            <input type="hidden" id="checkInDepositCardUSD" value="0">
                         </div>
                     </div>
                     <!-- Action Buttons -->
@@ -2090,4 +2067,3 @@
     </script>
 </body>
 </html>
-
