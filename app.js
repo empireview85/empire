@@ -320,6 +320,10 @@ function fmtIQD(n) {
     return Math.round(n).toLocaleString('en-US');
 }
 
+function fmtUSD(n) {
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function toggleLanguage() {
     setLanguage(currentLang === 'en' ? 'ar' : 'en');
 }
@@ -646,7 +650,7 @@ function openRoomModal(roomId = null) {
         const matchedOpt = Array.from(roomTypeSelect.options)
             .find(o => o.value.toLowerCase() === (room.type || '').toLowerCase());
         roomTypeSelect.value = matchedOpt ? matchedOpt.value : room.type;
-        document.getElementById('roomPrice').value = room.price;
+        document.getElementById('roomPrice').value = Math.round(room.price).toLocaleString('en-US');
         document.getElementById('roomCapacity').value = room.capacity;
         document.getElementById('roomFloor').value = room.floor;
         document.getElementById('roomDescription').value = room.description;
@@ -669,7 +673,7 @@ function handleRoomSubmit(e) {
     if (!requireOnline()) return;
     const roomNumber = document.getElementById('roomNumber').value;
     const roomType = document.getElementById('roomType').value;
-    const roomPrice = parseFloat(document.getElementById('roomPrice').value);
+    const roomPrice = parseFloat((document.getElementById('roomPrice').value || '').replace(/,/g, ''));
     const capacity = parseInt(document.getElementById('roomCapacity').value);
     const floor = parseInt(document.getElementById('roomFloor').value);
     const description = document.getElementById('roomDescription').value;
@@ -752,7 +756,7 @@ function displayRooms(rooms) {
                 </span>
             </div>
             <div class="mb-4">
-                <p class="text-2xl font-bold text-green-600">IQD ${fmtIQD(room.price)}</p>
+                <p class="text-2xl font-bold text-green-600">$${room.price}</p>
                 <p class="text-xs text-gray-500">${t('per_night')}</p>
             </div>
             <div class="mb-4 text-sm">
@@ -892,7 +896,7 @@ function displayCheckInRooms(rooms) {
                 </span>
             </div>
             <div class="mb-3">
-                <p class="text-2xl font-bold text-green-600">IQD ${fmtIQD(room.price)}</p>
+                <p class="text-2xl font-bold text-green-600">$${room.price}</p>
                 <p class="text-xs text-gray-500">${t('per_night')}</p>
             </div>
             <div class="text-sm mb-4">
@@ -938,8 +942,9 @@ function openCheckInModal(roomId, isTemp = false) {
     populateRoomSelectDropdown();
     document.getElementById('roomSelect').value = room.id;
     handleRoomSelection();
-    document.getElementById('basePriceIQD').value = room.price;
-    lockOtherPriceField('basePriceIQD', 'basePriceUSD');
+    document.getElementById('basePriceUSD').value = room.price;
+    document.getElementById('basePriceIQD').value = '';
+    lockOtherPriceField('basePriceUSD', 'basePriceIQD');
 
     // Hide the room selector — room was chosen by clicking the card
     document.getElementById('roomSelectSection').style.display = 'none';
@@ -948,7 +953,7 @@ function openCheckInModal(roomId, isTemp = false) {
     document.getElementById('roomBannerTitle').textContent =
         `${t('room_prefix')} ${room.number} — ${room.type}`;
     document.getElementById('roomBannerSub').textContent =
-        `${t('floor_prefix')} ${room.floor}  ·  IQD ${fmtIQD(room.price)} / ${t('per_night')}`;
+        `${t('floor_prefix')} ${room.floor}  ·  $${room.price} / ${t('per_night')}`;
 
     // Temp occupancy on a reserved room
     const tempWarning = document.getElementById('tempCheckInWarning');
@@ -1015,7 +1020,7 @@ function populateRoomSelectDropdown() {
         const option = document.createElement('option');
         option.value = room.id;
         const tag = room.status === 'reserved' ? ' [Reserved]' : '';
-        option.textContent = `Room ${room.number} (${room.type}) - IQD ${fmtIQD(room.price)}/night${tag}`;
+        option.textContent = `Room ${room.number} (${room.type}) - $${room.price}/night${tag}`;
         select.appendChild(option);
     });
 }
@@ -1064,9 +1069,9 @@ function handleRoomSelection() {
     if (room) {
         resetPriceFields();
         document.getElementById('roomTypeDisplay').value = room.type;
-        document.getElementById('basePriceIQD').value = room.price;
-        document.getElementById('basePriceUSD').value = '';
-        lockOtherPriceField('basePriceIQD', 'basePriceUSD');
+        document.getElementById('basePriceUSD').value = room.price;
+        document.getElementById('basePriceIQD').value = '';
+        lockOtherPriceField('basePriceUSD', 'basePriceIQD');
     }
 }
 
@@ -1104,7 +1109,7 @@ function recalcCheckout() {
 function calculateNights() { recalcCheckout(); }
 
 function calculateTotalPrice() {
-    const priceIQD = parseFloat(document.getElementById('basePriceIQD').value) || 0;
+    const priceIQD = parseFloat((document.getElementById('basePriceIQD').value || '').replace(/,/g, '')) || 0;
     const priceUSD = parseFloat(document.getElementById('basePriceUSD').value) || 0;
     const nights = parseInt(document.getElementById('nightsCount').textContent) || 0;
 
@@ -1127,7 +1132,7 @@ function handleCheckIn(e) {
         return;
     }
 
-    const priceIQD = parseFloat(document.getElementById('basePriceIQD').value) || 0;
+    const priceIQD = parseFloat((document.getElementById('basePriceIQD').value || '').replace(/,/g, '')) || 0;
     const priceUSD = parseFloat(document.getElementById('basePriceUSD').value) || 0;
     const depositCashIQD = parseFloat((document.getElementById('checkInDepositCashIQD')?.value || '').replace(/,/g, '')) || 0;
     const depositCashUSD = parseFloat(document.getElementById('checkInDepositCashUSD')?.value) || 0;
@@ -1805,27 +1810,23 @@ function updateDepositBreakdown() {
     const gCashIQD = guests.reduce((s, g) => s + (g.depositCashIQD || 0), 0);
     const gCashUSD = guests.reduce((s, g) => s + (g.depositCashUSD || 0), 0);
     const gCardIQD = guests.reduce((s, g) => s + (g.depositCardIQD || 0), 0);
-    const gCardUSD = guests.reduce((s, g) => s + (g.depositCardUSD || 0), 0);
 
     // Reservation deposits
     const rCashIQD = resLog.reduce((s, e) => s + (e.depositCashIQD || 0), 0);
     const rCashUSD = resLog.reduce((s, e) => s + (e.depositCashUSD || 0), 0);
     const rCardIQD = resLog.reduce((s, e) => s + (e.depositCardIQD || 0), 0);
-    const rCardUSD = resLog.reduce((s, e) => s + (e.depositCardUSD || 0), 0);
 
     const totalCashIQD = gCashIQD + rCashIQD;
     const totalCashUSD = gCashUSD + rCashUSD;
     const totalCardIQD = gCardIQD + rCardIQD;
-    const totalCardUSD = gCardUSD + rCardUSD;
 
     const showCash = filter === 'all' || filter === 'cash';
     const showCard = filter === 'all' || filter === 'card';
 
     const el = id => document.getElementById(id);
     if (el('depositCashIQDReport')) el('depositCashIQDReport').textContent = showCash ? `IQD ${fmtIQD(totalCashIQD)}` : 'IQD —';
-    if (el('depositCashUSDReport')) el('depositCashUSDReport').textContent = showCash ? `$${totalCashUSD.toFixed(2)}` : '$—';
+    if (el('depositCashUSDReport')) el('depositCashUSDReport').textContent = showCash ? `$${fmtUSD(totalCashUSD)}` : '$—';
     if (el('depositCardIQDReport')) el('depositCardIQDReport').textContent = showCard ? `IQD ${fmtIQD(totalCardIQD)}` : 'IQD —';
-    if (el('depositCardUSDReport')) el('depositCardUSDReport').textContent = showCard ? `$${totalCardUSD.toFixed(2)}` : '$—';
 }
 
 function generatePaymentMethodFilters() {
@@ -1877,21 +1878,18 @@ function updateReportsStats() {
 
     // Purchases
     const purchases = hotelData.purchases || [];
-    const purchIQD = purchases.reduce((s, p) => {
-        const iqd = p.priceIQD != null ? p.priceIQD : (p.price || 0);
-        return s + iqd * (p.quantity || 1);
-    }, 0);
-    const purchUSD = purchases.reduce((s, p) => s + (p.priceUSD || 0) * (p.quantity || 1), 0);
+    const purchIQD = purchases.reduce((s, p) => s + (p.priceIQD != null ? p.priceIQD : (p.price || 0)), 0);
+    const purchUSD = purchases.reduce((s, p) => s + (p.priceUSD || 0), 0);
 
     const occupiedRooms = hotelData.rooms.filter(r => r.status === 'occupied').length;
     const occupancyRate = hotelData.rooms.length > 0 ? ((occupiedRooms / hotelData.rooms.length) * 100).toFixed(1) : 0;
 
     document.getElementById('totalIncomeIQDReport').textContent = `IQD ${fmtIQD(incomeIQD)}`;
-    document.getElementById('totalIncomeUSDReport').textContent = `$${incomeUSD.toFixed(2)}`;
+    document.getElementById('totalIncomeUSDReport').textContent = `$${fmtUSD(incomeUSD)}`;
     document.getElementById('totalPurchasesIQDReport').textContent = `IQD ${fmtIQD(purchIQD)}`;
-    document.getElementById('totalPurchasesUSDReport').textContent = `$${purchUSD.toFixed(2)}`;
+    document.getElementById('totalPurchasesUSDReport').textContent = `$${fmtUSD(purchUSD)}`;
     document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(incomeIQD - purchIQD)}`;
-    document.getElementById('netRevenueUSDReport').textContent = `$${(incomeUSD - purchUSD).toFixed(2)}`;
+    document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(incomeUSD - purchUSD)}`;
     document.getElementById('occupancyRateReport').textContent = `${occupancyRate}%`;
     document.getElementById('totalGuestsReport').textContent = totalGuests;
 
@@ -2429,7 +2427,7 @@ function openReserveModal(roomId) {
     const info = document.getElementById('reserveRoomInfo');
     if (info) {
         info.innerHTML = `<b>${t('room_prefix')} ${room.number}</b> &nbsp;·&nbsp; ${room.type} &nbsp;·&nbsp; ${t('floor_prefix')} ${room.floor}
-            <span style="float:${currentLang==='ar'?'left':'right'};font-weight:700;color:#667eea;">IQD ${fmtIQD(room.price)}/${t('per_night')}</span>`;
+            <span style="float:${currentLang==='ar'?'left':'right'};font-weight:700;color:#667eea;">$${room.price}/${t('per_night')}</span>`;
     }
     // Pre-fill price
     const priceEl = document.getElementById('reservePrice');
@@ -3248,8 +3246,8 @@ function executeExport() {
             const depUSD     = resLog.reduce((s,e) => s+(e.depositUSD||0), 0);
             const incIQD = roomRevIQD + svcIQD + depIQD;
             const incUSD = roomRevUSD + depUSD;
-            const pIQD = purchases.reduce((s,p) => { const v = p.priceIQD!=null?p.priceIQD:(p.price||0); return s+v*(p.quantity||1); }, 0);
-            const pUSD = purchases.reduce((s,p) => s+(p.priceUSD||0)*(p.quantity||1), 0);
+            const pIQD = purchases.reduce((s,p) => { const v = p.priceIQD!=null?p.priceIQD:(p.price||0); return s+v; }, 0);
+            const pUSD = purchases.reduce((s,p) => s+(p.priceUSD||0), 0);
             addSheet('Summary', [
                 [`${hotel} — Export Report`],
                 ['Period:', range],
@@ -3341,19 +3339,20 @@ function executeExport() {
 
         // ── PURCHASES ──
         if (sel('exp_purchases')) {
-            const rows = [['#','Item Name','Price (IQD)','Price ($)','Qty','Total (IQD)','Total ($)','Date']];
+            const rows = [['#','Item Name','Price (IQD)','Price ($)','Notes','Date']];
             let tI=0, tU=0;
             purchases.forEach((p, i) => {
-                const qty=p.quantity||1, iqd=p.priceIQD!=null?p.priceIQD:(p.price||0), usd=p.priceUSD||0;
-                tI+=iqd*qty; tU+=usd*qty;
-                rows.push([i+1, p.name,
-                    iqd>0?`IQD ${fmtIQD(iqd)}`:'—', usd>0?`$${usd.toFixed(2)}`:'—', qty,
-                    iqd>0?`IQD ${fmtIQD(iqd*qty)}`:'—', usd>0?`$${(usd*qty).toFixed(2)}`:'—',
+                const iqd=p.priceIQD!=null?p.priceIQD:(p.price||0), usd=p.priceUSD||0;
+                tI+=iqd; tU+=usd;
+                rows.push([i+1, p.name||'—',
+                    iqd>0?`IQD ${fmtIQD(iqd)}`:'—',
+                    usd>0?`$${fmtUSD(usd)}`:'—',
+                    p.notes||'—',
                     p.date?new Date(p.date).toLocaleDateString():'—']);
             });
             if (rows.length===1) rows.push(['No purchases in this period']);
-            rows.push([], ['','TOTALS:','','',`=SUM`,`IQD ${fmtIQD(tI)}`,`$${tU.toFixed(2)}`,'']);
-            addSheet('Purchases', rows, [4,24,14,12,5,16,12,14]);
+            rows.push([], ['','TOTALS:',`IQD ${fmtIQD(tI)}`,`$${fmtUSD(tU)}`,'','']);
+            addSheet('Purchases', rows, [4,24,16,14,24,14]);
         }
 
         // ── REVENUE BY ROOM ──
@@ -3725,7 +3724,7 @@ function displayServiceRooms(rooms) {
                 </span>
             </div>
             <div class="mb-3">
-                <p class="text-2xl font-bold text-green-600">IQD ${fmtIQD(room.price)}</p>
+                <p class="text-2xl font-bold text-green-600">$${room.price}</p>
                 <p class="text-xs text-gray-500">${t('per_night')}</p>
             </div>
             <div class="text-sm mb-4">
@@ -3773,28 +3772,22 @@ function loadPurchasesPage() {
     const purchases = hotelData.purchases;
 
     if (!purchases || purchases.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-gray-500 py-8">${t('no_purchases')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-8">${t('no_purchases')}</td></tr>`;
         return;
     }
 
     tbody.innerHTML = purchases.map((p, i) => {
-        const qty = p.quantity || 1;
         const date = new Date(p.date).toLocaleDateString();
-        // Support legacy records that only had `price` (IQD)
         const iqd = p.priceIQD != null ? p.priceIQD : (p.price || 0);
         const usd = p.priceUSD || 0;
         const iqdCell = iqd > 0 ? `IQD ${fmtIQD(iqd)}` : '—';
-        const usdCell = usd > 0 ? `$${usd.toFixed(2)}` : '—';
-        const totalIQD = iqd > 0 ? `IQD ${fmtIQD(iqd * qty)}` : '—';
-        const totalUSD = usd > 0 ? `$${(usd * qty).toFixed(2)}` : '—';
+        const usdCell = usd > 0 ? `$${fmtUSD(usd)}` : '—';
         return `<tr>
             <td>${i + 1}</td>
             <td>${p.name}</td>
             <td>${iqdCell}</td>
             <td>${usdCell}</td>
-            <td>${qty}</td>
-            <td>${totalIQD}</td>
-            <td>${totalUSD}</td>
+            <td>${p.notes || '—'}</td>
             <td>${date}</td>
             <td>
                 <button class="btn btn-danger btn-sm" onclick="deletePurchase(${i})">
@@ -3809,21 +3802,19 @@ function handlePurchaseSubmit(e) {
     e.preventDefault();
     if (!requireOnline()) return;
     const name = document.getElementById('purchaseName').value.trim();
-    const priceIQD = parseFloat(document.getElementById('purchasePriceIQD').value.replace(/,/g, '')) || 0;
+    const priceIQD = parseFloat((document.getElementById('purchasePriceIQD').value || '').replace(/,/g, '')) || 0;
     const priceUSD = parseFloat(document.getElementById('purchasePriceUSD').value) || 0;
-    const quantityRaw = document.getElementById('purchaseQuantity').value;
-    const quantity = quantityRaw !== '' ? parseInt(quantityRaw) : 1;
+    const notes = document.getElementById('purchaseNotes').value.trim();
 
     if (!name || (priceIQD <= 0 && priceUSD <= 0)) {
         showToast('Enter a name and at least one price.', 'error');
         return;
     }
 
-    hotelData.purchases.push({ name, priceIQD, priceUSD, quantity, date: new Date().toISOString() });
+    hotelData.purchases.push({ name, priceIQD, priceUSD, notes, date: new Date().toISOString() });
     saveDataToStorage();
     closeModal('purchaseModal');
     document.getElementById('purchaseForm').reset();
-    document.getElementById('purchaseQuantity').value = '1';
     showToast(t('toast_purchase_added'), 'success');
     loadPurchasesPage();
 }
