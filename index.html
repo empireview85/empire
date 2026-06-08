@@ -1773,10 +1773,13 @@
                             <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                                 <i class="fas fa-bed" style="color:white;font-size:1.2em;"></i>
                             </div>
-                            <div>
+                            <div style="flex:1;">
                                 <div id="roomBannerTitle" style="font-size:1.1rem;font-weight:700;color:#1e1b4b;"></div>
                                 <div id="roomBannerSub" style="font-size:0.85rem;color:#6b7280;margin-top:2px;"></div>
                             </div>
+                            <button type="button" onclick="changeRoomSelection()" style="background:white;border:1.5px solid #c7d2fe;border-radius:8px;padding:6px 14px;font-size:0.82rem;font-weight:600;color:#4f46e5;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                                <i class="fas fa-exchange-alt"></i> Change Room
+                            </button>
                         </div>
                     </div>
                     <!-- Section: Guest Info -->
@@ -1935,8 +1938,8 @@
                         <button type="submit" class="btn btn-success flex-1" style="font-size: 1rem; padding: 14px 24px; border-radius: 12px; justify-content: center;">
                             <i class="fas fa-check-circle"></i> <span data-i18n="btn_checkin_guest">Check In Guest</span>
                         </button>
-                        <button type="reset" class="btn btn-secondary" style="padding: 14px 24px; border-radius: 12px; min-width: 130px; justify-content: center;" onclick="resetPriceFields()">
-                            <i class="fas fa-undo"></i> <span data-i18n="btn_reset_form">Reset</span>
+                        <button type="button" class="btn btn-secondary" style="padding: 14px 24px; border-radius: 12px; min-width: 130px; justify-content: center;" onclick="resetCheckInForm()">
+                            <i class="fas fa-undo"></i> <span data-i18n="btn_reset_form">Clear</span>
                         </button>
                     </div>
                 </form>
