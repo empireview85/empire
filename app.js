@@ -794,7 +794,6 @@ function startCheckInClock() {
     ciEl.style.cssText = '';
 
     function tick() {
-        // Only keep updating while the check-in modal is open and form not yet touched
         if (document.getElementById('checkInModal').classList.contains('active') === false) {
             clearInterval(_checkInClockTimer);
             _checkInClockTimer = null;
@@ -802,9 +801,9 @@ function startCheckInClock() {
         }
         const now = new Date();
         now.setSeconds(0, 0);
-        // Only update if user hasn't manually changed the value
         if (!ciEl.dataset.userChanged) {
-            ciEl.value = now.toISOString().slice(0, 16);
+            const pad = n => String(n).padStart(2, '0');
+            ciEl.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
         }
         recalcCheckout();
     }
@@ -995,8 +994,48 @@ function openCheckInModal(roomId, isTemp = false) {
         if (checkOutDisplay) { checkOutDisplay.style.borderColor = ''; checkOutDisplay.style.background = ''; }
     }
 
+    // Auto-fill current date/time
+    const now = new Date();
+    now.setSeconds(0, 0);
+    const pad = n => String(n).padStart(2, '0');
+    const localNow = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const dtEl = document.getElementById('checkInDateTime');
+    if (dtEl) { dtEl.value = localNow; }
+    recalcCheckout();
+
     startCheckInClock();
     openModal('checkInModal');
+}
+
+function changeRoomSelection() {
+    document.getElementById('roomSelectSection').style.display = '';
+    document.getElementById('roomSelectedBanner').style.display = 'none';
+    document.getElementById('checkInForm').dataset.tempRoomId = '';
+    resetPriceFields();
+    document.getElementById('basePriceIQD').value = '';
+    document.getElementById('basePriceUSD').value = '';
+}
+
+function resetCheckInForm() {
+    document.getElementById('checkInForm').reset();
+    resetPriceFields();
+    document.getElementById('basePriceIQD').value = '';
+    document.getElementById('basePriceUSD').value = '';
+    document.getElementById('checkInForm').dataset.tempRoomId = '';
+    ['checkInDepositCashIQD', 'checkInDepositCardIQD'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.value = ''; el.disabled = false; el.style.opacity = '1'; el.style.cursor = ''; }
+    });
+    const cashUSD = document.getElementById('checkInDepositCashUSD');
+    if (cashUSD) { cashUSD.value = ''; cashUSD.disabled = false; cashUSD.style.opacity = '1'; cashUSD.style.cursor = ''; }
+    // Re-fill current date/time
+    const now = new Date();
+    now.setSeconds(0, 0);
+    const pad = n => String(n).padStart(2, '0');
+    const localNow = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const dtEl = document.getElementById('checkInDateTime');
+    if (dtEl) dtEl.value = localNow;
+    recalcCheckout();
 }
 
 function openServiceAfterCheckIn() {
