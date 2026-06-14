@@ -6,7 +6,7 @@ const translations = {
     en: {
         nav_dashboard:'Dashboard', nav_rooms:'Room Management', nav_checkin:'Check In',
         nav_checkout:'Check Out', nav_services:'Services', nav_history:'History & Records',
-        nav_reports:'Reports', nav_purchases:'Purchases', nav_settings:'Settings', nav_logout:'Logout',
+        nav_reports:'Reports', nav_purchases:'Purchases', nav_settings:'Settings', nav_logout:'Logout', nav_shift_report:'Shift Report',
         all_status:'All Status', status_available:'Available', status_occupied:'Occupied',
         status_reserved:'Reserved', status_cleaning:'Cleaning',
         all_floors:'All Floors', floor_prefix:'Floor', all_types:'All Types',
@@ -65,6 +65,10 @@ const translations = {
         btn_add_purchase:'Add Purchase', col_num:'#', col_name:'Name',
         col_price:'Price', col_quantity:'Quantity', col_total:'Total',
         col_date:'Date', no_purchases:'No purchases yet',
+        nav_outside_income:'Outside Income', btn_add_outside_income:'Add Outside Income',
+        modal_add_outside_income:'Add Outside Income', no_outside_income:'No outside income yet',
+        toast_outside_income_added:'Outside income added successfully!',
+        toast_outside_income_deleted:'Outside income deleted.',
         hotel_settings_title:'Hotel Settings', label_hotel_name:'Hotel Name',
         label_currency:'Currency', label_tax_rate:'Tax Rate (%)',
         room_config_title:'Room Configuration', label_total_rooms:'Total Rooms',
@@ -129,6 +133,9 @@ const translations = {
         label_status_label:'Label', label_status_color:'Color',
         label_bookable:'Bookable', system_badge:'System',
         reserve_room:'Reserve Room', btn_reserve:'Reserve',
+        btn_group:'Group', lbl_group:'Group',
+        confirm_group_checkin:'Check in this room as a Group (no guest details, no charges)?',
+        toast_group_checkin:'Room checked in as Group.',
         label_arrival_date:'Expected Arrival Date',
         label_agreed_price:'Agreed Price / Night',
         label_deposit:'Deposit Paid (IQD)',
@@ -150,6 +157,12 @@ const translations = {
         back:'Back',
         checkout_note_label:'Note',
         checkout_note_placeholder:'Add a note about this checkout (optional)...',
+        lbl_balance_due:'Balance Due', lbl_fully_paid:'Fully covered by deposit',
+        lbl_cash:'Cash', lbl_mastercard:'MasterCard',
+        checkout_payment_title:'Checkout Payment',
+        checkout_payment_hint:'Enter the amount being collected from the guest now.',
+        err_checkout_payment_required:'Please enter the amount collected from the guest (Cash IQD, Cash USD, or MasterCard IQD).',
+        err_checkout_payment_insufficient:'The amount entered is less than the balance due. Please collect the full balance before checking out.',
         lbl_guest:'Guest', lbl_room:'Room', lbl_checkin:'Check-in', lbl_checkout:'Check-out',
         lbl_description:'Description', lbl_amount:'Amount',
         lbl_room_charges:'Room Charges', lbl_room_total:'Room Total',
@@ -160,7 +173,7 @@ const translations = {
         nav_dashboard:'لوحة التحكم', nav_rooms:'إدارة الغرف', nav_checkin:'تسجيل الدخول',
         nav_checkout:'تسجيل الخروج', nav_services:'الخدمات', nav_history:'السجلات والتاريخ',
         nav_reports:'التقارير', nav_purchases:'المشتريات', nav_settings:'الإعدادات',
-        nav_logout:'تسجيل الخروج',
+        nav_logout:'تسجيل الخروج', nav_shift_report:'تقرير الوردية',
         all_status:'جميع الحالات', status_available:'متاحة', status_occupied:'مشغولة',
         status_reserved:'محجوزة', status_cleaning:'قيد التنظيف',
         all_floors:'جميع الطوابق', floor_prefix:'الطابق', all_types:'جميع الأنواع',
@@ -219,6 +232,10 @@ const translations = {
         btn_add_purchase:'إضافة مشترى', col_num:'#', col_name:'الاسم',
         col_price:'السعر', col_quantity:'الكمية', col_total:'الإجمالي',
         col_date:'التاريخ', no_purchases:'لا توجد مشتريات',
+        nav_outside_income:'دخل خارجي', btn_add_outside_income:'إضافة دخل خارجي',
+        modal_add_outside_income:'إضافة دخل خارجي', no_outside_income:'لا يوجد دخل خارجي حتى الآن',
+        toast_outside_income_added:'تم إضافة الدخل الخارجي بنجاح!',
+        toast_outside_income_deleted:'تم حذف الدخل الخارجي.',
         hotel_settings_title:'إعدادات الفندق', label_hotel_name:'اسم الفندق',
         label_currency:'العملة', label_tax_rate:'نسبة الضريبة (%)',
         room_config_title:'إعدادات الغرف', label_total_rooms:'إجمالي الغرف',
@@ -283,6 +300,9 @@ const translations = {
         label_status_label:'التسمية', label_status_color:'اللون',
         label_bookable:'قابل للحجز', system_badge:'نظام',
         reserve_room:'حجز الغرفة', btn_reserve:'احجز',
+        btn_group:'مجموعة', lbl_group:'مجموعة',
+        confirm_group_checkin:'تسجيل دخول هذه الغرفة كمجموعة (بدون بيانات نزيل وبدون رسوم)؟',
+        toast_group_checkin:'تم تسجيل دخول الغرفة كمجموعة.',
         label_arrival_date:'تاريخ الوصول المتوقع',
         label_agreed_price:'السعر المتفق / ليلة',
         label_deposit:'العربون المدفوع (د.ع)',
@@ -304,6 +324,12 @@ const translations = {
         back:'رجوع',
         checkout_note_label:'ملاحظة',
         checkout_note_placeholder:'أضف ملاحظة عن هذا الخروج (اختياري)...',
+        lbl_balance_due:'المبلغ المتبقي', lbl_fully_paid:'مغطى بالكامل من العربون',
+        lbl_cash:'نقدي', lbl_mastercard:'ماستركارد',
+        checkout_payment_title:'دفعة تسجيل الخروج',
+        checkout_payment_hint:'أدخل المبلغ الذي يتم استلامه من النزيل الآن.',
+        err_checkout_payment_required:'يرجى إدخال المبلغ المستلم من النزيل (نقدي د.ع، نقدي دولار، أو ماستركارد د.ع).',
+        err_checkout_payment_insufficient:'المبلغ المدخل أقل من المبلغ المتبقي. يرجى تحصيل المبلغ المتبقي بالكامل قبل تسجيل الخروج.',
         lbl_guest:'الضيف', lbl_room:'الغرفة', lbl_checkin:'تاريخ الدخول', lbl_checkout:'تاريخ الخروج',
         lbl_description:'الوصف', lbl_amount:'المبلغ',
         lbl_room_charges:'رسوم الغرفة', lbl_room_total:'إجمالي الغرفة',
@@ -318,6 +344,19 @@ function t(key) {
 
 function fmtIQD(n) {
     return Math.round(n).toLocaleString('en-US');
+}
+
+function catName(cat) {
+    if (!cat) return '';
+    if (typeof cat === 'object') return currentLang === 'ar' ? (cat.ar || cat.en || '') : (cat.en || cat.ar || '');
+    return cat; // legacy string
+}
+
+function catNameByKey(key) {
+    if (!key) return '';
+    const cats = hotelData.settings.serviceCategories || [];
+    const found = cats.find(c => (typeof c === 'object' ? c.en : c) === key);
+    return found ? catName(found) : key;
 }
 
 function fmtUSD(n) {
@@ -403,7 +442,14 @@ let hotelData = {
         taxRate: 0,
         totalRooms: 20,
         paymentMethods: ['Cash', 'Card', 'Bank Transfer'],
-        serviceCategories: ['Food', 'Drinks', 'Hot Drinks', 'Laundry', 'Cleaning', 'Other'],
+        serviceCategories: [
+            {en:'Food',ar:'طعام'},
+            {en:'Drinks',ar:'مشروبات'},
+            {en:'Hot Drinks',ar:'مشروبات ساخنة'},
+            {en:'Laundry',ar:'غسيل'},
+            {en:'Cleaning',ar:'تنظيف'},
+            {en:'Other',ar:'أخرى'}
+        ],
         roomTypes: ['Single', 'Double', 'Suite', 'Deluxe'],
         roomStatuses: [
             { id: 'available',   label: 'Available',   color: '#10b981', bookable: true  },
@@ -415,6 +461,7 @@ let hotelData = {
     },
     activities: [],
     purchases: [],
+    outsideIncome: [],
     reservationLog: [],
     users: [
         { id: 1, name: 'Admin', email: 'admin@hotel.com', password: 'admin123', role: 'admin' }
@@ -492,6 +539,7 @@ function setupEventListeners() {
 
     // Purchase Form
     document.getElementById('purchaseForm')?.addEventListener('submit', handlePurchaseSubmit);
+    document.getElementById('outsideIncomeForm')?.addEventListener('submit', handleOutsideIncomeSubmit);
 }
 
 // ==================== MODAL FUNCTIONS ====================
@@ -531,7 +579,7 @@ function switchPage(pageId, clickedEl) {
         'dashboard': t('nav_dashboard'), 'rooms': t('nav_rooms'),
         'checkIn': t('nav_checkin'), 'checkOut': t('nav_checkout'),
         'history': t('nav_history'), 'reports': t('nav_reports'),
-        'purchases': t('nav_purchases'), 'services': t('nav_services'),
+        'purchases': t('nav_purchases'), 'outsideIncome': t('nav_outside_income'), 'services': t('nav_services'),
         'settings': t('nav_settings'), 'cleanerStatus': t('cleaner_page_title')
     };
     document.getElementById('pageTitle').textContent = titles[pageId] || t('nav_dashboard');
@@ -544,6 +592,7 @@ function switchPage(pageId, clickedEl) {
     if (pageId === 'history') loadHistoryPage();
     if (pageId === 'reports') loadReportsPage();
     if (pageId === 'purchases') loadPurchasesPage();
+    if (pageId === 'outsideIncome') loadOutsideIncomePage();
     if (pageId === 'services') loadServicesPage();
     if (pageId === 'settings') loadSettingsPage();
     if (pageId === 'cleanerStatus') loadCleanerPage();
@@ -911,6 +960,9 @@ function displayCheckInRooms(rooms) {
                        <button style="flex:1;padding:5px 8px;font-size:0.75rem;font-weight:600;background:#ede9fe;color:#7c3aed;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onclick="openReserveModal(${room.id});event.stopPropagation();">
                            <i class="fas fa-bookmark"></i> ${t('btn_reserve') || 'Reserve'}
                        </button>
+                       <button style="flex:1;padding:5px 8px;font-size:0.75rem;font-weight:600;background:#fef3c7;color:#b45309;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onclick="groupCheckIn(${room.id});event.stopPropagation();">
+                           <i class="fas fa-users"></i> ${t('btn_group') || 'Group'}
+                       </button>
                    </div>`
                 : isOccupied
                     ? `<button style="width:100%;margin-top:8px;padding:5px 8px;font-size:0.75rem;font-weight:600;background:#3b82f6;color:white;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onclick="openRoomServiceModal(${room.id});event.stopPropagation();">
@@ -1065,32 +1117,12 @@ function populateRoomSelectDropdown() {
 }
 
 function lockDepositField(activeId, otherId) {
-    const active = document.getElementById(activeId);
-    const other  = document.getElementById(otherId);
-    if (!active || !other) return;
-    const locked = active.value.trim() !== '' && parseFloat(active.value) > 0;
-    other.disabled = locked;
-    other.style.opacity = locked ? '0.35' : '1';
-    other.style.cursor  = locked ? 'not-allowed' : '';
+    // Both fields always stay open
 }
 
 function lockOtherPriceField(activeId, otherId) {
-    const active = document.getElementById(activeId);
-    const other  = document.getElementById(otherId);
     const hintEl = document.getElementById('checkInCurrencyHint');
-    const locked = active.value.trim() !== '' && parseFloat(active.value) > 0;
-    other.disabled = locked;
-    other.style.opacity = locked ? '0.35' : '1';
-    other.style.cursor  = locked ? 'not-allowed' : '';
-    if (hintEl) {
-        if (locked && activeId === 'basePriceIQD') {
-            hintEl.textContent = 'IQD price entered — USD field locked';
-        } else if (locked && activeId === 'basePriceUSD') {
-            hintEl.textContent = 'USD price entered — IQD field locked';
-        } else {
-            hintEl.textContent = '';
-        }
-    }
+    if (hintEl) hintEl.textContent = '';
     calculateTotalPrice();
 }
 
@@ -1206,6 +1238,7 @@ function handleCheckIn(e) {
         depositCardUSD: depositCardUSD,
         depositIQD: depositIQD,
         depositUSD: depositUSD,
+        notes: (document.getElementById('checkInNotes')?.value || '').trim(),
         orders: [],
         totalSpent: 0,
         checkedInBy: loggedInUser?.name || '—'
@@ -1249,6 +1282,50 @@ function handleCheckIn(e) {
     document.getElementById('checkInModalForm').style.display = 'none';
     document.getElementById('checkInModalSuccess').style.display = '';
     document.getElementById('checkInSuccessMsg').textContent = `${guest.name} — ${t('room_prefix')} ${room.number}`;
+}
+
+function groupCheckIn(roomId) {
+    if (!requireOnline()) return;
+    const room = hotelData.rooms.find(r => r.id === roomId);
+    const roomCfg = getStatusConfig(room.status);
+    if (!room || (!roomCfg.bookable && room.status !== 'reserved')) {
+        showToast(t('toast_room_unavailable'), 'error');
+        return;
+    }
+    if (!confirm(t('confirm_group_checkin') || 'Check in this room as a Group (no guest details, no charges)?')) return;
+
+    const now = new Date();
+    const checkOut = new Date(now.getTime() + 86400000);
+
+    const guest = {
+        id: Math.random().toString(36).substring(2, 11),
+        roomId: roomId,
+        name: t('lbl_group') || 'Group',
+        phone: '', nationality: '', idType: '', idNumber: '', email: '',
+        numGuests: 1,
+        checkIn: now.toISOString(),
+        checkOut: checkOut.toISOString(),
+        basePriceIQD: 0, basePriceUSD: 0, basePrice: 0,
+        depositCashIQD: 0, depositCashUSD: 0, depositCardIQD: 0, depositCardUSD: 0,
+        depositIQD: 0, depositUSD: 0,
+        notes: '',
+        orders: [],
+        totalSpent: 0,
+        checkedInBy: loggedInUser?.name || '—',
+        isGroup: true
+    };
+
+    room.isTemporary = false;
+    room.savedReservation = null;
+    room.reservationInfo = null;
+    room.status = 'occupied';
+    room.currentGuest = { name: guest.name, id: guest.id };
+
+    hotelData.guests.push(guest);
+    addActivity(`Room ${room.number} checked in as Group (no charges)`);
+    saveDataToStorage();
+    showToast(t('toast_group_checkin') || 'Room checked in as Group.', 'success');
+    loadCheckInPage();
 }
 
 // ==================== CHECK OUT ====================
@@ -1321,9 +1398,17 @@ function loadCheckOutForm(roomId) {
     // Services always in IQD
     const serviceTotal = guest.orders.reduce((sum, order) => sum + (order.price * order.quantity), 0);
 
+    // Balance due after deposit (room charges + services - deposit already paid)
+    const depositIQD = guest.depositIQD || 0;
+    const depositUSD = guest.depositUSD || 0;
+    const roomAmtIQD = roomIsUSD ? 0 : roomCharges;
+    const roomAmtUSD = roomIsUSD ? roomCharges : 0;
+    const balanceIQD = Math.max(0, roomAmtIQD + serviceTotal - depositIQD);
+    const balanceUSD = Math.max(0, roomAmtUSD - depositUSD);
+
     const orderItems = guest.orders.map(order => `
         <tr>
-            <td>${order.category ? order.category + ': ' : ''}${order.name}</td>
+            <td>${order.category ? catNameByKey(order.category) + ': ' : ''}${order.name}</td>
             <td>${order.quantity}</td>
             <td>IQD ${fmtIQD(order.price * order.quantity)}</td>
         </tr>
@@ -1360,12 +1445,21 @@ function loadCheckOutForm(roomId) {
                 ${(guest.depositIQD > 0 || guest.depositUSD > 0) ? `
                 <div class="info-item" style="border-left-color: #10b981; grid-column: 1 / -1;">
                     <div class="info-label"><i class="fas fa-hand-holding-usd mr-1 text-green-600"></i>${t('lbl_deposit_paid') || 'Deposit Paid'}</div>
-                    <div class="info-value" style="color: #059669;">
-                        ${guest.depositIQD > 0 ? `IQD ${fmtIQD(guest.depositIQD)}` : ''}
-                        ${guest.depositIQD > 0 && guest.depositUSD > 0 ? ' + ' : ''}
-                        ${guest.depositUSD > 0 ? `$${guest.depositUSD.toFixed(2)}` : ''}
+                    <div class="info-value" style="color: #059669; display:flex; flex-wrap:wrap; gap:14px; font-size:0.95rem;">
+                        ${guest.depositCashIQD > 0 ? `<span><i class="fas fa-money-bill-wave mr-1"></i>${t('lbl_cash')||'Cash'} IQD ${fmtIQD(guest.depositCashIQD)}</span>` : ''}
+                        ${guest.depositCashUSD > 0 ? `<span><i class="fas fa-money-bill-wave mr-1"></i>${t('lbl_cash')||'Cash'} $${guest.depositCashUSD.toFixed(2)}</span>` : ''}
+                        ${guest.depositCardIQD > 0 ? `<span><i class="fas fa-credit-card mr-1"></i>${t('lbl_mastercard')||'MasterCard'} IQD ${fmtIQD(guest.depositCardIQD)}</span>` : ''}
                     </div>
                 </div>` : ''}
+                <div class="info-item" style="border-left-color: #f59e0b; grid-column: 1 / -1;">
+                    <div class="info-label"><i class="fas fa-balance-scale mr-1" style="color:#d97706;"></i>${t('lbl_balance_due')||'Balance Due'}</div>
+                    <div class="info-value" style="color: #b45309;">
+                        ${balanceIQD > 0 ? `IQD ${fmtIQD(balanceIQD)}` : ''}
+                        ${balanceIQD > 0 && balanceUSD > 0 ? ' + ' : ''}
+                        ${balanceUSD > 0 ? `$${fmtUSD(balanceUSD)}` : ''}
+                        ${balanceIQD <= 0 && balanceUSD <= 0 ? (t('lbl_fully_paid')||'Fully covered by deposit') : ''}
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1403,10 +1497,36 @@ function loadCheckOutForm(roomId) {
         </div>
 
         <div class="mb-5">
-            <h4 class="text-lg font-bold text-gray-800 mb-2"><i class="fas fa-credit-card mr-2 text-blue-500"></i>${t('payment_method_label')}</h4>
-            <select id="checkoutPaymentMethod" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 text-sm">
-                ${(hotelData.settings.paymentMethods || ['Cash','Card','Bank Transfer']).map(m => `<option value="${m}">${m}</option>`).join('')}
-            </select>
+            <h4 class="text-lg font-bold text-gray-800 mb-2"><i class="fas fa-cash-register mr-2 text-green-600"></i>${t('checkout_payment_title')||'Checkout Payment'}</h4>
+            <p class="text-xs text-gray-500 mb-2">${t('checkout_payment_hint')||'Enter the amount being collected from the guest now.'}</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div style="margin-bottom:0;">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Cash IQD</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">IQD</span>
+                        <input type="text" inputmode="numeric" id="checkoutCashIQD" placeholder="0" style="padding-left:52px;"
+                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500"
+                            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')">
+                    </div>
+                </div>
+                <div style="margin-bottom:0;">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Cash USD</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">$</span>
+                        <input type="number" id="checkoutCashUSD" step="0.01" min="0" placeholder="0.00" style="padding-left:36px;"
+                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500">
+                    </div>
+                </div>
+                <div style="margin-bottom:0;">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">MasterCard IQD</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">IQD</span>
+                        <input type="text" inputmode="numeric" id="checkoutCardIQD" placeholder="0" style="padding-left:52px;"
+                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500"
+                            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')">
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="mb-5">
@@ -1436,15 +1556,6 @@ function confirmCheckOut(roomId, roomAmount, roomSymbol, serviceAmountIQD) {
     const guest = hotelData.guests.find(g => g.id === room.currentGuest.id);
     if (!guest) return;
 
-    guest.roomAmountPaid  = roomAmount;
-    guest.roomCurrency    = roomSymbol;
-    guest.serviceAmountIQD = serviceAmountIQD;
-    guest.totalSpent      = roomAmount;
-    guest.checkedOutAt    = new Date().toISOString();
-    guest.checkedOutBy    = loggedInUser?.name || '—';
-    guest.checkoutNote    = (document.getElementById('checkoutNote')?.value || '').trim();
-    guest.paymentMethod   = document.getElementById('checkoutPaymentMethod')?.value || '';
-
     // Calculate balance after deposit
     const depositIQD = guest.depositIQD || 0;
     const depositUSD = guest.depositUSD || 0;
@@ -1452,6 +1563,39 @@ function confirmCheckOut(roomId, roomAmount, roomSymbol, serviceAmountIQD) {
     const roomAmtUSD = roomSymbol === '$' ? roomAmount : 0;
     const balanceIQD = Math.max(0, roomAmtIQD + serviceAmountIQD - depositIQD);
     const balanceUSD = Math.max(0, roomAmtUSD - depositUSD);
+
+    // Read checkout payment amounts collected now
+    const checkoutCashIQD = parseFloat((document.getElementById('checkoutCashIQD')?.value || '0').replace(/,/g, '')) || 0;
+    const checkoutCashUSD = parseFloat(document.getElementById('checkoutCashUSD')?.value || '0') || 0;
+    const checkoutCardIQD = parseFloat((document.getElementById('checkoutCardIQD')?.value || '0').replace(/,/g, '')) || 0;
+    const paidIQD = checkoutCashIQD + checkoutCardIQD;
+    const paidUSD = checkoutCashUSD;
+
+    if (balanceIQD > 0 || balanceUSD > 0) {
+        if (checkoutCashIQD === 0 && checkoutCashUSD === 0 && checkoutCardIQD === 0) {
+            showToast(t('err_checkout_payment_required'), 'error');
+            return;
+        }
+        if (paidIQD < balanceIQD || paidUSD < balanceUSD) {
+            showToast(t('err_checkout_payment_insufficient'), 'error');
+            return;
+        }
+    }
+
+    guest.roomAmountPaid  = roomAmount;
+    guest.roomCurrency    = roomSymbol;
+    guest.serviceAmountIQD = serviceAmountIQD;
+    guest.totalSpent      = roomAmount;
+    guest.checkedOutAt    = new Date().toISOString();
+    guest.checkedOutBy    = loggedInUser?.name || '—';
+    guest.checkoutNote    = (document.getElementById('checkoutNote')?.value || '').trim();
+    const paymentParts = [];
+    if (checkoutCashIQD > 0 || checkoutCashUSD > 0) paymentParts.push('Cash');
+    if (checkoutCardIQD > 0) paymentParts.push('MasterCard');
+    guest.paymentMethod   = paymentParts.join(' + ');
+    guest.checkoutCashIQD = checkoutCashIQD;
+    guest.checkoutCashUSD = checkoutCashUSD;
+    guest.checkoutCardIQD = checkoutCardIQD;
     guest.balanceIQD = balanceIQD;
     guest.balanceUSD = balanceUSD;
 
@@ -1729,7 +1873,7 @@ function viewGuestDetails(guestId) {
     const ordersHtml = guest.orders.length > 0
         ? guest.orders.map(o => `
             <div class="flex justify-between py-2 border-b border-gray-100 text-sm">
-                <span class="text-gray-700">${o.category ? o.category + ': ' : ''}${o.name} × ${o.quantity}</span>
+                <span class="text-gray-700">${o.category ? catNameByKey(o.category) + ': ' : ''}${o.name} × ${o.quantity}</span>
                 <span class="font-semibold text-gray-800">IQD ${fmtIQD(o.price * o.quantity)}</span>
             </div>`).join('') +
           `<div class="flex justify-between py-2 mt-1">
@@ -2249,11 +2393,15 @@ function loadSettingsPage() {
     if (serviceContainer) {
         serviceContainer.innerHTML = '';
         (hotelData.settings.serviceCategories || []).forEach((cat, i) => {
+            const enVal = typeof cat === 'object' ? (cat.en || '') : cat;
+            const arVal = typeof cat === 'object' ? (cat.ar || '') : '';
             const div = document.createElement('div');
             div.className = 'flex gap-2 mb-2 items-center';
             div.innerHTML = `
-                <input type="text" value="${cat}" onchange="hotelData.settings.serviceCategories[${i}]=this.value"
-                    class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Category name">
+                <input type="text" data-cat-en="${i}" value="${enVal}"
+                    class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="English">
+                <input type="text" data-cat-ar="${i}" value="${arVal}" dir="rtl"
+                    class="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500" placeholder="عربي">
                 <button type="button" onclick="removeServiceCategory(${i})" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>`;
             serviceContainer.appendChild(div);
         });
@@ -2288,7 +2436,7 @@ function loadSettingsPage() {
 
 function addServiceCategory() {
     if (!hotelData.settings.serviceCategories) hotelData.settings.serviceCategories = [];
-    hotelData.settings.serviceCategories.push('New Category');
+    hotelData.settings.serviceCategories.push({ en: '', ar: '' });
     saveDataToStorage();
     loadSettingsPage();
 }
@@ -2302,8 +2450,12 @@ function removeServiceCategory(index) {
 function saveSettings() {
     if (!requireOnline()) return;
     // Read edited category names from DOM inputs
-    const catInputs = document.querySelectorAll('#serviceCategories input[type="text"]');
-    hotelData.settings.serviceCategories = Array.from(catInputs).map(inp => inp.value.trim()).filter(v => v);
+    const catRows = document.querySelectorAll('#serviceCategories > div');
+    hotelData.settings.serviceCategories = Array.from(catRows).map(row => {
+        const enInp = row.querySelector('[data-cat-en]');
+        const arInp = row.querySelector('[data-cat-ar]');
+        return { en: enInp ? enInp.value.trim() : '', ar: arInp ? arInp.value.trim() : '' };
+    }).filter(c => c.en || c.ar);
 
     // Read edited room types from DOM inputs
     const rtInputs = document.querySelectorAll('#roomTypeItems input[type="text"]');
@@ -2471,13 +2623,12 @@ function openReserveModal(roomId) {
     // Pre-fill price
     const priceEl = document.getElementById('reservePrice');
     if (priceEl) priceEl.value = room.price;
-    // Set default arrival to tomorrow
+    // Set default arrival to now (local time)
     const arrEl = document.getElementById('reserveArrivalDate');
     if (arrEl) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(14, 0, 0, 0);
-        arrEl.value = tomorrow.toISOString().slice(0, 16);
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        arrEl.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     }
     // Populate payment methods
     const pmEl = document.getElementById('reservePaymentMethod');
@@ -2488,6 +2639,8 @@ function openReserveModal(roomId) {
     }
     document.getElementById('reserveGuestName').value = '';
     document.getElementById('reservePhone').value = '';
+    const notesEl = document.getElementById('reserveNotes');
+    if (notesEl) notesEl.value = '';
     ['reserveDepositCashIQD','reserveDepositCashUSD','reserveDepositCardIQD','reserveDepositCardUSD'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.value = ''; el.disabled = false; el.style.opacity = '1'; el.style.cursor = ''; }
@@ -2518,6 +2671,7 @@ function confirmReservation(e) {
     const depositIQD = depositCashIQD + depositCardIQD;
     const depositUSD = depositCashUSD + depositCardUSD;
     const paymentMethod = document.getElementById('reservePaymentMethod')?.value || '';
+    const notes = (document.getElementById('reserveNotes')?.value || '').trim();
     const ri = {
         guestName:   document.getElementById('reserveGuestName').value.trim(),
         phone:       document.getElementById('reservePhone').value.trim(),
@@ -2526,6 +2680,7 @@ function confirmReservation(e) {
         depositCashIQD, depositCashUSD, depositCardIQD, depositCardUSD,
         depositIQD, depositUSD,
         paymentMethod,
+        notes,
         createdAt:   new Date().toISOString()
     };
     room.status = 'reserved';
@@ -2542,6 +2697,7 @@ function confirmReservation(e) {
         depositCashIQD, depositCashUSD, depositCardIQD, depositCardUSD,
         depositIQD, depositUSD,
         paymentMethod: ri.paymentMethod,
+        notes,
         reservedAt: new Date().toISOString(),
         reservedBy: loggedInUser?.name || '—',
         status: 'active',
@@ -2612,9 +2768,24 @@ function openCheckInFromReservation(roomId) {
     if (ri.phone)     document.getElementById('guestPhone').value = ri.phone;
     if (ri.price) {
         resetPriceFields();
-        document.getElementById('basePriceIQD').value = ri.price;
-        lockOtherPriceField('basePriceIQD', 'basePriceUSD');
+        document.getElementById('basePriceUSD').value = ri.price;
+        document.getElementById('basePriceIQD').value = '';
+        lockOtherPriceField('basePriceUSD', 'basePriceIQD');
     }
+
+    // Pre-fill deposit fields from the reservation
+    const cashIQDEl = document.getElementById('checkInDepositCashIQD');
+    if (cashIQDEl && ri.depositCashIQD) cashIQDEl.value = Math.round(ri.depositCashIQD).toLocaleString('en-US');
+    const cashUSDEl = document.getElementById('checkInDepositCashUSD');
+    if (cashUSDEl && ri.depositCashUSD) cashUSDEl.value = ri.depositCashUSD;
+    const cardIQDEl = document.getElementById('checkInDepositCardIQD');
+    if (cardIQDEl && ri.depositCardIQD) cardIQDEl.value = Math.round(ri.depositCardIQD).toLocaleString('en-US');
+
+    // Pre-fill notes from the reservation
+    const notesEl = document.getElementById('checkInNotes');
+    if (notesEl && ri.notes) notesEl.value = ri.notes;
+
+    calculateTotalPrice();
 }
 
 // ==================== USER MANAGEMENT ====================
@@ -3012,7 +3183,8 @@ const PAGE_ACCESS = {
     services: ['admin'],
     history: ['admin', 'reception'],
     reports: ['admin'],
-    purchases: ['admin'],
+    purchases: ['admin', 'reception'],
+    outsideIncome: ['admin', 'reception'],
     settings: ['admin'],
     cleanerStatus: ['admin', 'cleaner', 'reception'],
 };
@@ -3027,6 +3199,227 @@ function applyRoleUI() {
     if (userEl) userEl.textContent = `${loggedInUser.name} (${t('role_' + role)})`;
 
     // Cleaner nav visible to all three roles — always labelled "Room Status"
+}
+
+function downloadShiftReport() {
+    const now        = new Date();
+    const pad        = n => String(n).padStart(2, '0');
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const isToday    = d => { if (!d) return false; const dt = new Date(d); return dt >= todayStart && dt <= todayEnd; };
+    const esc        = s => String(s == null ? '—' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    const hotel     = hotelData.settings?.hotelName || 'Hotel';
+    const staff     = loggedInUser?.name || loggedInUser?.email || '—';
+    const allGuests = [...(hotelData.guests || [])];
+    const resLog    = [...(hotelData.reservationLog || [])];
+    const allRooms  = [...(hotelData.rooms || [])];
+    const byMe      = name => !(!name || name === '—') && name === staff;
+
+    const checkInsToday  = allGuests.filter(g => isToday(g.checkIn)      && byMe(g.checkedInBy));
+    const checkOutsToday = allGuests.filter(g => isToday(g.checkedOutAt) && byMe(g.checkedOutBy));
+    const reservesToday  = resLog.filter(e => isToday(e.reservedAt)      && byMe(e.reservedBy));
+
+    const servicesToday = [];
+    allGuests.forEach(g => {
+        if (!Array.isArray(g.orders)) return;
+        g.orders.filter(o => isToday(o.timestamp) && byMe(o.addedBy)).forEach(o => {
+            const room = allRooms.find(r => r.id === g.roomId);
+            servicesToday.push({ guestName: g.name, roomNum: room ? room.number : '—', order: o, isCheckedOut: !!g.checkedOutAt });
+        });
+    });
+
+    // ── Totals ──
+    let ciCashIQD = 0, ciCashUSD = 0, ciCardIQD = 0;
+    checkInsToday.forEach(g => { ciCashIQD += g.depositCashIQD||0; ciCashUSD += g.depositCashUSD||0; ciCardIQD += g.depositCardIQD||0; });
+
+    let coCashIQD = 0, coCashUSD = 0, coCardIQD = 0;
+    checkOutsToday.forEach(g => { coCashIQD += g.checkoutCashIQD||0; coCashUSD += g.checkoutCashUSD||0; coCardIQD += g.checkoutCardIQD||0; });
+
+    let resCashIQD = 0, resCashUSD = 0, resCardIQD = 0;
+    reservesToday.forEach(e => { resCashIQD += e.depositCashIQD||0; resCashUSD += e.depositCashUSD||0; resCardIQD += e.depositCardIQD||0; });
+
+    // Services for still-active guests counted separately (checked-out services already in balanceIQD)
+    const svcActiveIQD = servicesToday.filter(s => !s.isCheckedOut).reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
+    const svcTotalIQD  = servicesToday.reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
+
+    const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + svcActiveIQD;
+    const grandUSD = ciCashUSD + coCashUSD + resCashUSD;
+    const dateStr  = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+    // ── HTML table builder (shared for Excel + Print) ──
+    function buildTableHtml(forPrint) {
+        const C = forPrint
+            ? { title:'#222', sect:'#333', colHdr:'#555', sub:'#ddd', subC:'#000', vHdr:'#222', vRow:'#f5f5f5', grand:'#111', even:'#f9f9f9', note:'#fffbe6' }
+            : { title:'#1e3a8a', sect:'#1d4ed8', colHdr:'#3b82f6', sub:'#bfdbfe', subC:'#1e3a5f', vHdr:'#14532d', vRow:'#f0fdf4', grand:'#15803d', even:'#f0f7ff', note:'#fefce8' };
+        const cell  = (v, s='') => `<td style="padding:6px 8px;border:1px solid #ddd;${s}">${esc(v)}</td>`;
+        const hcell = (v, s='') => `<td style="padding:7px 10px;font-weight:700;color:#fff;background:${C.colHdr};border:1px solid #fff;${s}">${esc(v)}</td>`;
+        const shead = (v, n) => `<tr><td colspan="${n}" style="padding:9px 10px;font-weight:700;color:#fff;background:${C.sect};font-size:12px;letter-spacing:1px;text-transform:uppercase;border-top:4px solid #fff;">${esc(v)}</td></tr>`;
+        const sub   = (cells) => `<tr>${cells.map(v=>`<td style="padding:6px 10px;font-weight:700;background:${C.sub};color:${C.subC};border:1px solid #ccc;">${esc(v)}</td>`).join('')}</tr>`;
+        const empty = (msg, n) => `<tr><td colspan="${n}" style="padding:8px;color:#9ca3af;font-style:italic;background:${C.note};">${esc(msg)}</td></tr>`;
+        const drow  = (cells, i) => `<tr>${cells.map(v=>`<td style="padding:6px 8px;border:1px solid #ddd;background:${i%2===0?C.even:'#fff'};">${esc(v)}</td>`).join('')}</tr>`;
+
+        let h = `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;">`;
+
+        // Header
+        h += `<tr><td colspan="8" style="padding:14px;font-size:17px;font-weight:700;color:#fff;background:${C.title};text-align:center;letter-spacing:2px;">${esc(hotel)} — SHIFT REPORT</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:7px 10px;background:${C.even};"><b>Staff:</b> ${esc(staff)}</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:7px 10px;background:${C.even};"><b>Date:</b> ${now.toLocaleDateString()} &nbsp;&nbsp; <b>Generated:</b> ${now.toLocaleString()}</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:6px 10px;background:${C.note};color:#92400e;font-style:italic;">Filtered to this staff member's activity today only</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
+
+        // CHECK-IN DEPOSITS
+        h += shead('Check-in Deposits', 8);
+        h += `<tr>${['#','Guest Name','Room','Check-in Time','Cash (IQD)','Cash ($)','MasterCard (IQD)','Total Deposit'].map(v=>hcell(v)).join('')}</tr>`;
+        if (checkInsToday.length) {
+            checkInsToday.forEach((g, i) => {
+                const room = allRooms.find(r => r.id === g.roomId);
+                const ci = g.depositCashIQD||0, cu = g.depositCashUSD||0, ca = g.depositCardIQD||0;
+                const tot = (ci+ca>0?`IQD ${fmtIQD(ci+ca)}`:'—') + (cu>0?` + $${fmtUSD(cu)}`:'');
+                h += drow([i+1, g.name||'—', room?`Room ${room.number}`:'—', g.checkIn?new Date(g.checkIn).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', tot||'—'], i);
+            });
+        } else { h += empty('No check-ins today', 8); }
+        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(ciCashIQD)}`, `$${fmtUSD(ciCashUSD)}`, `IQD ${fmtIQD(ciCardIQD)}`, `IQD ${fmtIQD(ciCashIQD+ciCardIQD)}`]);
+        h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
+
+        // CHECK-OUT PAYMENTS
+        h += shead('Check-out Payments Collected', 8);
+        h += `<tr>${['#','Guest Name','Room','Check-out Time','Cash (IQD)','Cash ($)','MasterCard (IQD)','Note'].map(v=>hcell(v)).join('')}</tr>`;
+        if (checkOutsToday.length) {
+            checkOutsToday.forEach((g, i) => {
+                const room = allRooms.find(r => r.id === g.roomId);
+                const ci = g.checkoutCashIQD||0, cu = g.checkoutCashUSD||0, ca = g.checkoutCardIQD||0;
+                h += drow([i+1, g.name||'—', room?`Room ${room.number}`:'—', g.checkedOutAt?new Date(g.checkedOutAt).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', g.checkoutNote||'—'], i);
+            });
+        } else { h += empty('No check-outs today', 8); }
+        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(coCashIQD)}`, `$${fmtUSD(coCashUSD)}`, `IQD ${fmtIQD(coCardIQD)}`, '']);
+        h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
+
+        // RESERVATION DEPOSITS
+        h += shead('Reservation Deposits', 8);
+        h += `<tr>${['#','Guest Name','Room','Reserved At','Cash (IQD)','Cash ($)','MasterCard (IQD)',''].map(v=>hcell(v)).join('')}</tr>`;
+        if (reservesToday.length) {
+            reservesToday.forEach((e, i) => {
+                const ci = e.depositCashIQD||0, cu = e.depositCashUSD||0, ca = e.depositCardIQD||0;
+                h += drow([i+1, e.guestName||'—', `Room ${e.roomNumber||'—'}`, e.reservedAt?new Date(e.reservedAt).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', ''], i);
+            });
+        } else { h += empty('No reservations today', 8); }
+        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(resCashIQD)}`, `$${fmtUSD(resCashUSD)}`, `IQD ${fmtIQD(resCardIQD)}`, '']);
+        h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
+
+        // SERVICES
+        h += shead('Services Added Today', 8);
+        h += `<tr>${['#','Guest Name','Room','Service','Qty','Unit Price (IQD)','Total (IQD)','Status'].map(v=>hcell(v)).join('')}</tr>`;
+        if (servicesToday.length) {
+            servicesToday.forEach((s, i) => {
+                const o = s.order, tot = (o.price||0)*(o.quantity||1);
+                h += drow([i+1, s.guestName||'—', `Room ${s.roomNum}`, o.name||'—', o.quantity||1, o.price>0?`IQD ${fmtIQD(o.price)}`:'—', tot>0?`IQD ${fmtIQD(tot)}`:'—', s.isCheckedOut?'In checkout balance':'Collected (active room)'], i);
+            });
+        } else { h += empty('No services today', 8); }
+        h += sub(['','','','','','TOTAL (all)', `IQD ${fmtIQD(svcTotalIQD)}`, `Active rooms: IQD ${fmtIQD(svcActiveIQD)}`]);
+        h += `<tr><td colspan="8" style="padding:6px;"></td></tr>`;
+
+        // VAULT SUMMARY
+        h += `<tr><td colspan="8" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.vHdr};font-size:13px;text-align:center;letter-spacing:1px;text-transform:uppercase;">Vault Summary — Total Money Received Today</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
+        h += `<tr>${['Source','IQD','USD ($)'].map((v,i)=>`<td colspan="${i===0?4:2}" style="padding:7px 10px;font-weight:700;background:${C.sub};color:${C.subC};">${esc(v)}</td>`).join('')}</tr>`;
+
+        const vrow = (lbl, iqd, usd) => `<tr>
+            <td colspan="4" style="padding:7px 10px;background:${C.vRow};">${esc(lbl)}</td>
+            <td colspan="2" style="padding:7px 10px;background:${C.vRow};text-align:right;">${esc(iqd)}</td>
+            <td colspan="2" style="padding:7px 10px;background:${C.vRow};text-align:right;">${esc(usd)}</td>
+        </tr>`;
+        h += vrow('Check-in Deposits (Cash)',          `IQD ${fmtIQD(ciCashIQD)}`,  `$${fmtUSD(ciCashUSD)}`);
+        h += vrow('Check-in Deposits (MasterCard)',    `IQD ${fmtIQD(ciCardIQD)}`,  '—');
+        h += vrow('Check-out Payments (Cash)',         `IQD ${fmtIQD(coCashIQD)}`,  `$${fmtUSD(coCashUSD)}`);
+        h += vrow('Check-out Payments (MasterCard)',   `IQD ${fmtIQD(coCardIQD)}`,  '—');
+        h += vrow('Reservation Deposits (Cash)',       `IQD ${fmtIQD(resCashIQD)}`, `$${fmtUSD(resCashUSD)}`);
+        h += vrow('Reservation Deposits (MasterCard)', `IQD ${fmtIQD(resCardIQD)}`, '—');
+        h += vrow('Services (Active Rooms)',           `IQD ${fmtIQD(svcActiveIQD)}`,'—');
+        h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
+        h += `<tr>
+            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;">TOTAL IQD IN VAULT</td>
+            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;text-align:right;">IQD ${fmtIQD(grandIQD)}</td>
+        </tr>`;
+        h += `<tr>
+            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;">TOTAL USD IN VAULT</td>
+            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;text-align:right;">$${fmtUSD(grandUSD)}</td>
+        </tr>`;
+        h += `</table>`;
+        return h;
+    }
+
+    // ── Show modal ──
+    document.getElementById('shiftReportOverlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'shiftReportOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+    overlay.innerHTML = `
+        <div style="background:#fff;border-radius:16px;width:94vw;max-width:1080px;max-height:92vh;
+                    display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,0.45);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:16px 22px;
+                        display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                <div>
+                    <div style="font-size:17px;font-weight:700;letter-spacing:1px;">Shift Report</div>
+                    <div style="font-size:12px;opacity:0.82;margin-top:2px;">${esc(staff)} &mdash; ${now.toLocaleDateString()}</div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <button id="srExcelBtn" style="background:#10b981;color:#fff;border:none;border-radius:8px;
+                            padding:8px 16px;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;">
+                        <i class="fas fa-file-excel"></i> Download Excel
+                    </button>
+                    <button id="srPrintBtn" style="background:#6366f1;color:#fff;border:none;border-radius:8px;
+                            padding:8px 16px;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <button id="srCloseBtn" style="background:rgba(255,255,255,0.18);color:#fff;border:none;
+                            border-radius:8px;padding:8px 13px;cursor:pointer;font-size:20px;line-height:1;">&times;</button>
+                </div>
+            </div>
+            <div id="shiftReportContent" style="overflow-y:auto;padding:20px;flex:1;background:#f8fafc;">
+                ${buildTableHtml(false)}
+            </div>
+        </div>`;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('srCloseBtn').onclick  = () => overlay.remove();
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    document.getElementById('srExcelBtn').onclick = () => {
+        const tableHtml = buildTableHtml(false);
+        const fullHtml  = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shift Report</title></head><body>${tableHtml}</body></html>`;
+        const blob = new Blob([fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = `ShiftReport_${(staff).replace(/\s+/g,'_')}_${dateStr}.xls`; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    document.getElementById('srPrintBtn').onclick = () => {
+        const tableHtml = buildTableHtml(true);
+        const pw = window.open('', '_blank', 'width=960,height=750');
+        pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shift Report — ${esc(staff)}</title>
+        <style>
+            body { margin: 20px; font-family: Arial, sans-serif; }
+            table { border-collapse: collapse; width: 100%; font-size: 11px; }
+            td { border: 1px solid #bbb; padding: 5px 7px; }
+            @media print {
+                body { margin: 10mm; }
+                button { display: none !important; }
+            }
+        </style></head><body>
+        ${tableHtml}
+        <br>
+        <button onclick="window.print()" style="margin-top:12px;padding:10px 28px;font-size:14px;cursor:pointer;
+                background:#333;color:#fff;border:none;border-radius:6px;">
+            Print / Save as PDF
+        </button>
+        </body></html>`);
+        pw.document.close();
+        setTimeout(() => pw.print(), 600);
+    };
 }
 
 function logout() {
@@ -3064,6 +3457,7 @@ function loadDataFromStorage() {
                     roomStatuses: (parsed.settings && parsed.settings.roomStatuses) || hotelData.settings.roomStatuses
                 },
                 purchases: parsed.purchases || [],
+                outsideIncome: parsed.outsideIncome || [],
                 activities: parsed.activities || [],
                 rooms: parsed.rooms || [],
                 guests: parsed.guests || [],
@@ -3786,8 +4180,10 @@ function _populateOrderModal() {
     select.innerHTML = '';
     (hotelData.settings.serviceCategories || []).forEach(cat => {
         const opt = document.createElement('option');
-        opt.value = cat;
-        opt.textContent = cat;
+        const display = catName(cat);
+        const valueKey = typeof cat === 'object' ? (cat.en || cat.ar) : cat;
+        opt.value = valueKey;
+        opt.textContent = display;
         select.appendChild(opt);
     });
     document.getElementById('orderItemName').value = '';
@@ -3864,6 +4260,65 @@ function deletePurchase(index) {
     saveDataToStorage();
     showToast(t('toast_purchase_deleted'), 'success');
     loadPurchasesPage();
+}
+
+function loadOutsideIncomePage() {
+    const tbody = document.getElementById('outsideIncomeTable');
+    const items = hotelData.outsideIncome || [];
+
+    if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-8">${t('no_outside_income')}</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = items.map((p, i) => {
+        const date = new Date(p.date).toLocaleDateString();
+        const iqdCell = p.priceIQD > 0 ? `IQD ${fmtIQD(p.priceIQD)}` : '—';
+        const usdCell = p.priceUSD > 0 ? `$${fmtUSD(p.priceUSD)}` : '—';
+        return `<tr>
+            <td>${i + 1}</td>
+            <td>${p.name}</td>
+            <td>${iqdCell}</td>
+            <td>${usdCell}</td>
+            <td>${p.notes || '—'}</td>
+            <td>${date}</td>
+            <td>
+                <button class="btn btn-danger btn-sm" onclick="deleteOutsideIncome(${i})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function handleOutsideIncomeSubmit(e) {
+    e.preventDefault();
+    if (!requireOnline()) return;
+    const name = document.getElementById('outsideIncomeName').value.trim();
+    const priceIQD = parseFloat((document.getElementById('outsideIncomePriceIQD').value || '').replace(/,/g, '')) || 0;
+    const priceUSD = parseFloat(document.getElementById('outsideIncomePriceUSD').value) || 0;
+    const notes = document.getElementById('outsideIncomeNotes').value.trim();
+
+    if (!name || (priceIQD <= 0 && priceUSD <= 0)) {
+        showToast('Enter a name and at least one price.', 'error');
+        return;
+    }
+
+    if (!Array.isArray(hotelData.outsideIncome)) hotelData.outsideIncome = [];
+    hotelData.outsideIncome.push({ name, priceIQD, priceUSD, notes, date: new Date().toISOString(), addedBy: loggedInUser?.name || '—' });
+    saveDataToStorage();
+    closeModal('outsideIncomeModal');
+    document.getElementById('outsideIncomeForm').reset();
+    showToast(t('toast_outside_income_added'), 'success');
+    loadOutsideIncomePage();
+}
+
+function deleteOutsideIncome(index) {
+    if (!requireOnline()) return;
+    hotelData.outsideIncome.splice(index, 1);
+    saveDataToStorage();
+    showToast(t('toast_outside_income_deleted'), 'success');
+    loadOutsideIncomePage();
 }
 
 // ==================== NOTIFICATIONS ====================
@@ -3954,6 +4409,7 @@ function fbMerge(fbData) {
         guests:     toArr(fbData.guests).map(g => ({ ...g, orders: toArr(g.orders) })),
         activities:     toArr(fbData.activities),
         purchases:      toArr(fbData.purchases),
+        outsideIncome:  toArr(fbData.outsideIncome),
         reservationLog: toArr(fbData.reservationLog),
         users:          toArr(fbData.users),
         settings:   { ...hotelData.settings, ...(fbData.settings || {}) }
@@ -3982,6 +4438,7 @@ function refreshPage(pageId) {
         case 'history':       loadHistoryPage();   break;
         case 'reports':       loadReportsPage();   break;
         case 'purchases':     loadPurchasesPage(); break;
+        case 'outsideIncome': loadOutsideIncomePage(); break;
         case 'cleanerStatus': loadCleanerPage();   break;
     }
 }
