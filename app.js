@@ -8,7 +8,7 @@ const translations = {
         nav_checkout:'Check Out', nav_services:'Services', nav_history:'History & Records',
         nav_reports:'Reports', nav_purchases:'Purchases', nav_settings:'Settings', nav_logout:'Logout', nav_shift_report:'Shift Report',
         all_status:'All Status', status_available:'Available', status_occupied:'Occupied',
-        status_reserved:'Reserved', status_cleaning:'Cleaning',
+        status_reserved:'Reserved', status_cleaning:'Cleaning', status_vacated:'Vacated',
         all_floors:'All Floors', floor_prefix:'Floor', all_types:'All Types',
         min_price:'Min Price', max_price:'Max Price', reset:'Reset',
         edit:'Edit', details:'Details', per_night:'per night', cancel:'Cancel', close:'Close',
@@ -71,6 +71,8 @@ const translations = {
         toast_outside_income_deleted:'Outside income deleted.',
         hotel_settings_title:'Hotel Settings', label_hotel_name:'Hotel Name',
         label_currency:'Currency', label_tax_rate:'Tax Rate (%)',
+        exchange_rate_title:'Exchange Rate', label_exchange_rate:'1 USD = ? IQD',
+        exchange_rate_hint:'Used to convert between USD and IQD at checkout (room price, deposit, services, and payment all get compared using this rate).',
         room_config_title:'Room Configuration', label_total_rooms:'Total Rooms',
         room_types_title:'Room Types', btn_add_room_type:'Add Room Type',
         service_items_title:'Service Items', btn_add_service_item:'Add Service Item',
@@ -163,6 +165,8 @@ const translations = {
         checkout_payment_hint:'Enter the amount being collected from the guest now.',
         err_checkout_payment_required:'Please enter the amount collected from the guest (Cash IQD, Cash USD, or MasterCard IQD).',
         err_checkout_payment_insufficient:'The amount entered is less than the balance due. Please collect the full balance before checking out.',
+        lbl_remaining:'Remaining', lbl_change_due:'Change due',
+        lbl_fully_paid_now:'Fully paid — no balance remaining',
         lbl_guest:'Guest', lbl_room:'Room', lbl_checkin:'Check-in', lbl_checkout:'Check-out',
         lbl_description:'Description', lbl_amount:'Amount',
         lbl_room_charges:'Room Charges', lbl_room_total:'Room Total',
@@ -175,7 +179,7 @@ const translations = {
         nav_reports:'التقارير', nav_purchases:'المشتريات', nav_settings:'الإعدادات',
         nav_logout:'تسجيل الخروج', nav_shift_report:'تقرير الوردية',
         all_status:'جميع الحالات', status_available:'متاحة', status_occupied:'مشغولة',
-        status_reserved:'محجوزة', status_cleaning:'قيد التنظيف',
+        status_reserved:'محجوزة', status_cleaning:'قيد التنظيف', status_vacated:'شاغرة',
         all_floors:'جميع الطوابق', floor_prefix:'الطابق', all_types:'جميع الأنواع',
         min_price:'أقل سعر', max_price:'أعلى سعر', reset:'إعادة تعيين',
         edit:'تعديل', details:'تفاصيل', per_night:'في الليلة', cancel:'إلغاء', close:'إغلاق',
@@ -238,6 +242,8 @@ const translations = {
         toast_outside_income_deleted:'تم حذف الدخل الخارجي.',
         hotel_settings_title:'إعدادات الفندق', label_hotel_name:'اسم الفندق',
         label_currency:'العملة', label_tax_rate:'نسبة الضريبة (%)',
+        exchange_rate_title:'سعر الصرف', label_exchange_rate:'1 دولار = ؟ دينار عراقي',
+        exchange_rate_hint:'يُستخدم لتحويل العملة بين الدولار والدينار العراقي عند تسجيل الخروج (سعر الغرفة، العربون، الخدمات، والدفع تتم مقارنتها جميعها بهذا السعر).',
         room_config_title:'إعدادات الغرف', label_total_rooms:'إجمالي الغرف',
         room_types_title:'أنواع الغرف', btn_add_room_type:'إضافة نوع غرفة',
         service_items_title:'عناصر الخدمة', btn_add_service_item:'إضافة خدمة',
@@ -330,6 +336,8 @@ const translations = {
         checkout_payment_hint:'أدخل المبلغ الذي يتم استلامه من النزيل الآن.',
         err_checkout_payment_required:'يرجى إدخال المبلغ المستلم من النزيل (نقدي د.ع، نقدي دولار، أو ماستركارد د.ع).',
         err_checkout_payment_insufficient:'المبلغ المدخل أقل من المبلغ المتبقي. يرجى تحصيل المبلغ المتبقي بالكامل قبل تسجيل الخروج.',
+        lbl_remaining:'المتبقي', lbl_change_due:'المبلغ المسترجع',
+        lbl_fully_paid_now:'تم الدفع بالكامل — لا يوجد مبلغ متبقي',
         lbl_guest:'الضيف', lbl_room:'الغرفة', lbl_checkin:'تاريخ الدخول', lbl_checkout:'تاريخ الخروج',
         lbl_description:'الوصف', lbl_amount:'المبلغ',
         lbl_room_charges:'رسوم الغرفة', lbl_room_total:'إجمالي الغرفة',
@@ -390,6 +398,18 @@ function translatePage() {
 }
 
 // ==================== STATUS SYSTEM ====================
+// Adds any newly-introduced default statuses (e.g. 'vacated') to data saved before they existed,
+// without touching colors/labels the user already customized for existing statuses.
+function ensureDefaultRoomStatuses(statuses) {
+    const list = Array.isArray(statuses) ? [...statuses] : [];
+    const defaults = [
+        { id: 'cleaning', label: 'Cleaning', color: '#3b82f6', bookable: false },
+        { id: 'vacated',  label: 'Vacated',  color: '#dc2626', bookable: false },
+    ];
+    defaults.forEach(d => { if (!list.find(s => s.id === d.id)) list.push(d); });
+    return list;
+}
+
 function getStatusConfig(id) {
     const found = (hotelData.settings.roomStatuses || []).find(s => s.id === id);
     return found || { id, label: id, color: '#6b7280', bookable: false };
@@ -405,8 +425,8 @@ function getCleanerStatuses() {
 }
 
 const STATUS_ICONS = {
-    available: 'fa-check-circle', cleaning: 'fa-broom', unavailable: 'fa-ban',
-    reserved: 'fa-bookmark', occupied: 'fa-user-circle'
+    available: 'fa-check-circle', cleaning: 'fa-broom', vacated: 'fa-door-open',
+    unavailable: 'fa-ban', reserved: 'fa-bookmark', occupied: 'fa-user-circle'
 };
 
 function getStatusIcon(id) { return STATUS_ICONS[id] || 'fa-circle'; }
@@ -440,6 +460,7 @@ let hotelData = {
         currency: 'USD',
         currencySymbol: '$',
         taxRate: 0,
+        exchangeRate: 1500,
         totalRooms: 20,
         paymentMethods: ['Cash', 'Card', 'Bank Transfer'],
         serviceCategories: [
@@ -454,6 +475,7 @@ let hotelData = {
         roomStatuses: [
             { id: 'available',   label: 'Available',   color: '#10b981', bookable: true  },
             { id: 'cleaning',    label: 'Cleaning',    color: '#3b82f6', bookable: false },
+            { id: 'vacated',     label: 'Vacated',     color: '#dc2626', bookable: false },
             { id: 'unavailable', label: 'Unavailable', color: '#ef4444', bookable: false },
             { id: 'reserved',    label: 'Reserved',    color: '#f59e0b', bookable: false, system: true },
             { id: 'occupied',    label: 'Occupied',    color: '#6b7280', bookable: false, system: true },
@@ -976,6 +998,31 @@ function displayCheckInRooms(rooms) {
 }
 
 let _lastCheckedInRoomId = null;
+let _checkoutBalanceIQD = 0;
+let _checkoutRate = 1500;
+
+// Live-updates the "Remaining" line under the checkout payment fields as the user types,
+// so the receptionist doesn't have to use an outside calculator to figure out what's left.
+function updateCheckoutRemaining() {
+    const el = document.getElementById('checkoutRemainingBalance');
+    if (!el) return;
+    const cashIQD = parseFloat((document.getElementById('checkoutCashIQD')?.value || '0').replace(/,/g, '')) || 0;
+    const cashUSD = parseFloat(document.getElementById('checkoutCashUSD')?.value || '0') || 0;
+    const cardIQD = parseFloat((document.getElementById('checkoutCardIQD')?.value || '0').replace(/,/g, '')) || 0;
+    const paidIQDEquivalent = cashIQD + cardIQD + (cashUSD * _checkoutRate);
+    const remaining = _checkoutBalanceIQD - paidIQDEquivalent;
+
+    if (remaining > 0.5) {
+        el.style.background = '#fef2f2'; el.style.color = '#b91c1c';
+        el.innerHTML = `<i class="fas fa-exclamation-circle mr-1"></i>${t('lbl_remaining') || 'Remaining'}: IQD ${fmtIQD(remaining)} <span style="opacity:0.75;">(&asymp; $${fmtUSD(remaining / _checkoutRate)})</span>`;
+    } else if (remaining < -0.5) {
+        el.style.background = '#f0fdf4'; el.style.color = '#15803d';
+        el.innerHTML = `<i class="fas fa-coins mr-1"></i>${t('lbl_change_due') || 'Change due'}: IQD ${fmtIQD(-remaining)} <span style="opacity:0.75;">(&asymp; $${fmtUSD(-remaining / _checkoutRate)})</span>`;
+    } else {
+        el.style.background = '#f0fdf4'; el.style.color = '#15803d';
+        el.innerHTML = `<i class="fas fa-check-circle mr-1"></i>${t('lbl_fully_paid_now') || 'Fully paid — no balance remaining'}`;
+    }
+}
 
 function openTempCheckIn(roomId) {
     const room = hotelData.rooms.find(r => r.id === roomId);
@@ -1399,12 +1446,17 @@ function loadCheckOutForm(roomId) {
     const serviceTotal = guest.orders.reduce((sum, order) => sum + (order.price * order.quantity), 0);
 
     // Balance due after deposit (room charges + services - deposit already paid)
+    // Everything is converted to a single IQD figure using the exchange rate, so USD and IQD
+    // amounts (room price, deposit, services, payment) can be compared/combined directly.
+    const rate = hotelData.settings.exchangeRate || 1500;
     const depositIQD = guest.depositIQD || 0;
     const depositUSD = guest.depositUSD || 0;
-    const roomAmtIQD = roomIsUSD ? 0 : roomCharges;
-    const roomAmtUSD = roomIsUSD ? roomCharges : 0;
-    const balanceIQD = Math.max(0, roomAmtIQD + serviceTotal - depositIQD);
-    const balanceUSD = Math.max(0, roomAmtUSD - depositUSD);
+    const roomChargeIQD = roomIsUSD ? roomCharges * rate : roomCharges;
+    const depositIQDEquivalent = depositIQD + (depositUSD * rate);
+    const balanceIQD = Math.max(0, roomChargeIQD + serviceTotal - depositIQDEquivalent);
+    const balanceUSD = balanceIQD / rate;
+    _checkoutBalanceIQD = balanceIQD;
+    _checkoutRate = rate;
 
     const orderItems = guest.orders.map(order => `
         <tr>
@@ -1454,11 +1506,11 @@ function loadCheckOutForm(roomId) {
                 <div class="info-item" style="border-left-color: #f59e0b; grid-column: 1 / -1;">
                     <div class="info-label"><i class="fas fa-balance-scale mr-1" style="color:#d97706;"></i>${t('lbl_balance_due')||'Balance Due'}</div>
                     <div class="info-value" style="color: #b45309;">
-                        ${balanceIQD > 0 ? `IQD ${fmtIQD(balanceIQD)}` : ''}
-                        ${balanceIQD > 0 && balanceUSD > 0 ? ' + ' : ''}
-                        ${balanceUSD > 0 ? `$${fmtUSD(balanceUSD)}` : ''}
-                        ${balanceIQD <= 0 && balanceUSD <= 0 ? (t('lbl_fully_paid')||'Fully covered by deposit') : ''}
+                        ${balanceIQD > 0
+                            ? `IQD ${fmtIQD(balanceIQD)} <span style="color:#9ca3af;font-weight:500;">(&asymp; $${fmtUSD(balanceUSD)})</span>`
+                            : (t('lbl_fully_paid')||'Fully covered by deposit')}
                     </div>
+                    <div class="text-xs text-gray-400 mt-1">${t('exchange_rate_note')||'Rate used'}: $1 = IQD ${fmtIQD(rate)}</div>
                 </div>
             </div>
         </div>
@@ -1506,7 +1558,7 @@ function loadCheckOutForm(roomId) {
                         <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">IQD</span>
                         <input type="text" inputmode="numeric" id="checkoutCashIQD" placeholder="0" style="padding-left:52px;"
                             class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500"
-                            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')">
+                            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g,',');updateCheckoutRemaining()">
                     </div>
                 </div>
                 <div style="margin-bottom:0;">
@@ -1514,7 +1566,8 @@ function loadCheckOutForm(roomId) {
                     <div style="position:relative;">
                         <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">$</span>
                         <input type="number" id="checkoutCashUSD" step="0.01" min="0" placeholder="0.00" style="padding-left:36px;"
-                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500">
+                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500"
+                            oninput="updateCheckoutRemaining()">
                     </div>
                 </div>
                 <div style="margin-bottom:0;">
@@ -1523,10 +1576,11 @@ function loadCheckOutForm(roomId) {
                         <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:600;font-size:0.85rem;">IQD</span>
                         <input type="text" inputmode="numeric" id="checkoutCardIQD" placeholder="0" style="padding-left:52px;"
                             class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500"
-                            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g,',')">
+                            oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/\\B(?=(\\d{3})+(?!\\d))/g,',');updateCheckoutRemaining()">
                     </div>
                 </div>
             </div>
+            <div id="checkoutRemainingBalance" style="margin-top:10px;padding:9px 14px;border-radius:8px;font-size:0.88rem;font-weight:700;"></div>
         </div>
 
         <div class="mb-5">
@@ -1547,6 +1601,7 @@ function loadCheckOutForm(roomId) {
             </button>
         </div>
     `;
+    updateCheckoutRemaining();
 }
 
 function confirmCheckOut(roomId, roomAmount, roomSymbol, serviceAmountIQD) {
@@ -1556,27 +1611,29 @@ function confirmCheckOut(roomId, roomAmount, roomSymbol, serviceAmountIQD) {
     const guest = hotelData.guests.find(g => g.id === room.currentGuest.id);
     if (!guest) return;
 
-    // Calculate balance after deposit
+    // Calculate balance after deposit — everything converted to one IQD figure via the
+    // exchange rate, so USD/IQD room price, deposit, services, and payment all compare directly.
+    const rate = hotelData.settings.exchangeRate || 1500;
     const depositIQD = guest.depositIQD || 0;
     const depositUSD = guest.depositUSD || 0;
-    const roomAmtIQD = roomSymbol === 'IQD' ? roomAmount : 0;
-    const roomAmtUSD = roomSymbol === '$' ? roomAmount : 0;
-    const balanceIQD = Math.max(0, roomAmtIQD + serviceAmountIQD - depositIQD);
-    const balanceUSD = Math.max(0, roomAmtUSD - depositUSD);
+    const roomChargeIQD = roomSymbol === 'IQD' ? roomAmount : roomAmount * rate;
+    const depositIQDEquivalent = depositIQD + (depositUSD * rate);
+    const balanceIQD = Math.max(0, roomChargeIQD + serviceAmountIQD - depositIQDEquivalent);
+    const balanceUSD = balanceIQD / rate;
 
     // Read checkout payment amounts collected now
     const checkoutCashIQD = parseFloat((document.getElementById('checkoutCashIQD')?.value || '0').replace(/,/g, '')) || 0;
     const checkoutCashUSD = parseFloat(document.getElementById('checkoutCashUSD')?.value || '0') || 0;
     const checkoutCardIQD = parseFloat((document.getElementById('checkoutCardIQD')?.value || '0').replace(/,/g, '')) || 0;
-    const paidIQD = checkoutCashIQD + checkoutCardIQD;
-    const paidUSD = checkoutCashUSD;
+    const paidIQDEquivalent = checkoutCashIQD + checkoutCardIQD + (checkoutCashUSD * rate);
 
-    if (balanceIQD > 0 || balanceUSD > 0) {
+    if (balanceIQD > 0) {
         if (checkoutCashIQD === 0 && checkoutCashUSD === 0 && checkoutCardIQD === 0) {
             showToast(t('err_checkout_payment_required'), 'error');
             return;
         }
-        if (paidIQD < balanceIQD || paidUSD < balanceUSD) {
+        const TOLERANCE_IQD = 1; // guard against float rounding only, not a real discount
+        if (paidIQDEquivalent + TOLERANCE_IQD < balanceIQD) {
             showToast(t('err_checkout_payment_insufficient'), 'error');
             return;
         }
@@ -1606,7 +1663,7 @@ function confirmCheckOut(roomId, roomAmount, roomSymbol, serviceAmountIQD) {
         room.isTemporary     = false;
         room.savedReservation = null;
     } else {
-        room.status = 'cleaning';
+        room.status = 'vacated';
     }
     room.currentGuest = null;
 
@@ -2267,10 +2324,11 @@ function updateDashboardStats() {
         return checkIn.toDateString() === today.toDateString();
     }).length;
 
-    document.getElementById('availableRoomsCount').textContent = availableRooms;
-    document.getElementById('occupiedRoomsCount').textContent = occupiedRooms;
-    document.getElementById('totalIncomeCount').textContent = hotelData.settings.currencySymbol + totalIncome.toFixed(2);
-    document.getElementById('guestsTodayCount').textContent = guestCount;
+    const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    _set('availableRoomsCount', availableRooms);
+    _set('occupiedRoomsCount', occupiedRooms);
+    _set('totalIncomeCount', (hotelData.settings.currencySymbol || '$') + totalIncome.toFixed(2));
+    _set('guestsTodayCount', guestCount);
 }
 
 function updateDashboardCharts() {
@@ -2334,16 +2392,17 @@ function updateRoomStatusChart() {
     const occupied = hotelData.rooms.filter(r => r.status === 'occupied').length;
     const reserved = hotelData.rooms.filter(r => r.status === 'reserved').length;
     const cleaning = hotelData.rooms.filter(r => r.status === 'cleaning').length;
+    const vacated  = hotelData.rooms.filter(r => r.status === 'vacated').length;
 
     if (charts.roomStatus) charts.roomStatus.destroy();
 
     charts.roomStatus = new window['Chart'](ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Available', 'Occupied', 'Reserved', 'Cleaning'],
+            labels: ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Vacated'],
             datasets: [{
-                data: [available, occupied, reserved, cleaning],
-                backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6'],
+                data: [available, occupied, reserved, cleaning, vacated],
+                backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#dc2626'],
                 borderColor: '#fff',
                 borderWidth: 3
             }]
@@ -2388,6 +2447,9 @@ function updateRecentActivities() {
 // ==================== SETTINGS ====================
 function loadSettingsPage() {
     loadUsersSection();
+
+    const rateEl = document.getElementById('settingsExchangeRate');
+    if (rateEl) rateEl.value = Math.round(hotelData.settings.exchangeRate || 1500).toLocaleString('en-US');
 
     const serviceContainer = document.getElementById('serviceCategories');
     if (serviceContainer) {
@@ -2449,6 +2511,12 @@ function removeServiceCategory(index) {
 
 function saveSettings() {
     if (!requireOnline()) return;
+    const rateEl = document.getElementById('settingsExchangeRate');
+    if (rateEl) {
+        const rate = parseFloat((rateEl.value || '').replace(/,/g, '')) || 0;
+        if (rate > 0) hotelData.settings.exchangeRate = rate;
+    }
+
     // Read edited category names from DOM inputs
     const catRows = document.querySelectorAll('#serviceCategories > div');
     hotelData.settings.serviceCategories = Array.from(catRows).map(row => {
@@ -2563,6 +2631,9 @@ function loadCleanerPage() {
     let rooms = hotelData.rooms;
     if (selFloor !== 'all') rooms = rooms.filter(r => String(r.floor) === selFloor);
     if (selStatus !== 'all') rooms = rooms.filter(r => r.status === selStatus);
+    // Sort: cleaning (urgent) first, vacated second, then the rest
+    const statusPriority = { cleaning: 0, vacated: 1 };
+    rooms = [...rooms].sort((a, b) => (statusPriority[a.status] ?? 99) - (statusPriority[b.status] ?? 99));
 
     if (rooms.length === 0) {
         grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#9ca3af;">${t('no_data')}</div>`;
@@ -2579,12 +2650,18 @@ function loadCleanerPage() {
         const guestLine = room.currentGuest
             ? `<div style="font-size:0.75rem;color:white;opacity:0.75;margin-top:2px;"><i class="fas fa-user" style="margin-right:4px;"></i>${room.currentGuest.name || ''}</div>`
             : '';
+        const priorityBadge = room.status === 'cleaning'
+            ? `<div style="font-size:0.68rem;font-weight:700;background:rgba(255,255,255,0.25);color:white;border-radius:20px;padding:2px 8px;margin-top:5px;display:inline-block;letter-spacing:0.05em;">⚡ CLEAN NOW</div>`
+            : room.status === 'vacated'
+            ? `<div style="font-size:0.68rem;font-weight:700;background:rgba(255,255,255,0.25);color:white;border-radius:20px;padding:2px 8px;margin-top:5px;display:inline-block;letter-spacing:0.05em;">🕐 CLEAN AFTER</div>`
+            : '';
         return `<div style="background:white;border-radius:18px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.1);transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform=''">
             <div style="background:${cfg.color};padding:20px 18px;display:flex;align-items:center;justify-content:space-between;">
                 <div>
                     <div style="color:white;font-size:1.25rem;font-weight:800;line-height:1.2;">${t('room_prefix')} ${room.number}</div>
                     <div style="color:rgba(255,255,255,0.8);font-size:0.78rem;margin-top:3px;">${t('floor_prefix')} ${room.floor} &nbsp;·&nbsp; ${room.type}</div>
                     ${guestLine}
+                    ${priorityBadge}
                 </div>
                 <i class="fas ${icon}" style="color:rgba(255,255,255,0.5);font-size:2.2em;"></i>
             </div>
@@ -3201,7 +3278,7 @@ function applyRoleUI() {
     // Cleaner nav visible to all three roles — always labelled "Room Status"
 }
 
-function downloadShiftReport() {
+function downloadShiftReport(autoExcel = false) {
     const now        = new Date();
     const pad        = n => String(n).padStart(2, '0');
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -3239,12 +3316,22 @@ function downloadShiftReport() {
     let resCashIQD = 0, resCashUSD = 0, resCardIQD = 0;
     reservesToday.forEach(e => { resCashIQD += e.depositCashIQD||0; resCashUSD += e.depositCashUSD||0; resCardIQD += e.depositCardIQD||0; });
 
-    // Services for still-active guests counted separately (checked-out services already in balanceIQD)
+    // Services for still-active guests counted separately (checked-out services already in coCashIQD/coCardIQD)
     const svcActiveIQD = servicesToday.filter(s => !s.isCheckedOut).reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
     const svcTotalIQD  = servicesToday.reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
 
-    const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + svcActiveIQD;
-    const grandUSD = ciCashUSD + coCashUSD + resCashUSD;
+    // Outside income added by this staff member today
+    const outsideIncomeToday = (hotelData.outsideIncome || []).filter(p => isToday(p.date) && byMe(p.addedBy));
+    const oiIQD = outsideIncomeToday.reduce((sum, p) => sum + (p.priceIQD||0), 0);
+    const oiUSD = outsideIncomeToday.reduce((sum, p) => sum + (p.priceUSD||0), 0);
+
+    // Purchases made by this staff member today (deducted from vault)
+    const purchasesToday = (hotelData.purchases || []).filter(p => isToday(p.date) && byMe(p.addedBy));
+    const purchIQD = purchasesToday.reduce((sum, p) => sum + (p.priceIQD != null ? p.priceIQD : (p.price||0)), 0);
+    const purchUSD = purchasesToday.reduce((sum, p) => sum + (p.priceUSD||0), 0);
+
+    const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + svcActiveIQD + oiIQD - purchIQD;
+    const grandUSD = ciCashUSD + coCashUSD + resCashUSD + oiUSD - purchUSD;
     const dateStr  = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
 
     // ── HTML table builder (shared for Excel + Print) ──
@@ -3319,8 +3406,31 @@ function downloadShiftReport() {
         h += sub(['','','','','','TOTAL (all)', `IQD ${fmtIQD(svcTotalIQD)}`, `Active rooms: IQD ${fmtIQD(svcActiveIQD)}`]);
         h += `<tr><td colspan="8" style="padding:6px;"></td></tr>`;
 
+        // OUTSIDE INCOME
+        h += shead('Outside Income', 8);
+        h += `<tr>${['#','Name','Notes','Date','Price (IQD)','Price ($)','',''].map(v=>hcell(v)).join('')}</tr>`;
+        if (outsideIncomeToday.length) {
+            outsideIncomeToday.forEach((p, i) => {
+                h += drow([i+1, p.name||'—', p.notes||'—', p.date?new Date(p.date).toLocaleString():'—', p.priceIQD>0?`IQD ${fmtIQD(p.priceIQD)}`:'—', p.priceUSD>0?`$${fmtUSD(p.priceUSD)}`:'—', '', ''], i);
+            });
+        } else { h += empty('No outside income today', 8); }
+        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(oiIQD)}`, `$${fmtUSD(oiUSD)}`, '', '']);
+        h += `<tr><td colspan="8" style="padding:6px;"></td></tr>`;
+
+        // PURCHASES (DEDUCTIONS)
+        h += shead('Purchases (Deductions)', 8);
+        h += `<tr>${['#','Name','Notes','Date','Price (IQD)','Price ($)','',''].map(v=>hcell(v)).join('')}</tr>`;
+        if (purchasesToday.length) {
+            purchasesToday.forEach((p, i) => {
+                const iqd = p.priceIQD != null ? p.priceIQD : (p.price||0);
+                h += drow([i+1, p.name||'—', p.notes||'—', p.date?new Date(p.date).toLocaleString():'—', iqd>0?`IQD ${fmtIQD(iqd)}`:'—', p.priceUSD>0?`$${fmtUSD(p.priceUSD)}`:'—', '', ''], i);
+            });
+        } else { h += empty('No purchases today', 8); }
+        h += sub(['','','','SUBTOTAL', purchIQD>0?`- IQD ${fmtIQD(purchIQD)}`:'—', purchUSD>0?`- $${fmtUSD(purchUSD)}`:'—', '', '']);
+        h += `<tr><td colspan="8" style="padding:6px;"></td></tr>`;
+
         // VAULT SUMMARY
-        h += `<tr><td colspan="8" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.vHdr};font-size:13px;text-align:center;letter-spacing:1px;text-transform:uppercase;">Vault Summary — Total Money Received Today</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.vHdr};font-size:13px;text-align:center;letter-spacing:1px;text-transform:uppercase;">Vault Summary — Net Total</td></tr>`;
         h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
         h += `<tr>${['Source','IQD','USD ($)'].map((v,i)=>`<td colspan="${i===0?4:2}" style="padding:7px 10px;font-weight:700;background:${C.sub};color:${C.subC};">${esc(v)}</td>`).join('')}</tr>`;
 
@@ -3329,6 +3439,11 @@ function downloadShiftReport() {
             <td colspan="2" style="padding:7px 10px;background:${C.vRow};text-align:right;">${esc(iqd)}</td>
             <td colspan="2" style="padding:7px 10px;background:${C.vRow};text-align:right;">${esc(usd)}</td>
         </tr>`;
+        const vneg = (lbl, iqd, usd) => `<tr>
+            <td colspan="4" style="padding:7px 10px;background:#fef2f2;color:#dc2626;font-weight:600;">${esc(lbl)}</td>
+            <td colspan="2" style="padding:7px 10px;background:#fef2f2;color:#dc2626;font-weight:600;text-align:right;">${esc(iqd)}</td>
+            <td colspan="2" style="padding:7px 10px;background:#fef2f2;color:#dc2626;font-weight:600;text-align:right;">${esc(usd)}</td>
+        </tr>`;
         h += vrow('Check-in Deposits (Cash)',          `IQD ${fmtIQD(ciCashIQD)}`,  `$${fmtUSD(ciCashUSD)}`);
         h += vrow('Check-in Deposits (MasterCard)',    `IQD ${fmtIQD(ciCardIQD)}`,  '—');
         h += vrow('Check-out Payments (Cash)',         `IQD ${fmtIQD(coCashIQD)}`,  `$${fmtUSD(coCashUSD)}`);
@@ -3336,17 +3451,31 @@ function downloadShiftReport() {
         h += vrow('Reservation Deposits (Cash)',       `IQD ${fmtIQD(resCashIQD)}`, `$${fmtUSD(resCashUSD)}`);
         h += vrow('Reservation Deposits (MasterCard)', `IQD ${fmtIQD(resCardIQD)}`, '—');
         h += vrow('Services (Active Rooms)',           `IQD ${fmtIQD(svcActiveIQD)}`,'—');
+        h += vrow('Outside Income',                   `IQD ${fmtIQD(oiIQD)}`,       `$${fmtUSD(oiUSD)}`);
+        h += vneg('Purchases (Deducted)',              purchIQD>0?`- IQD ${fmtIQD(purchIQD)}`:'—', purchUSD>0?`- $${fmtUSD(purchUSD)}`:'—');
         h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
         h += `<tr>
-            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;">TOTAL IQD IN VAULT</td>
+            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;">NET VAULT TOTAL (IQD)</td>
             <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;text-align:right;">IQD ${fmtIQD(grandIQD)}</td>
         </tr>`;
         h += `<tr>
-            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;">TOTAL USD IN VAULT</td>
+            <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;">NET VAULT TOTAL (USD)</td>
             <td colspan="4" style="padding:11px 10px;font-weight:700;color:#fff;background:${C.grand};font-size:14px;text-align:right;">$${fmtUSD(grandUSD)}</td>
         </tr>`;
         h += `</table>`;
         return h;
+    }
+
+    // ── Auto-download (used on logout) — skip the modal, just save the Excel file ──
+    if (autoExcel) {
+        const tableHtml = buildTableHtml(false);
+        const fullHtml  = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shift Report</title></head><body>${tableHtml}</body></html>`;
+        const blob = new Blob([fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = `ShiftReport_${(staff).replace(/\s+/g,'_')}_${dateStr}.xls`; a.click();
+        URL.revokeObjectURL(url);
+        return;
     }
 
     // ── Show modal ──
@@ -3424,6 +3553,9 @@ function downloadShiftReport() {
 
 function logout() {
     if (!confirm(t('logout_confirm') || 'Are you sure you want to logout?')) return;
+    if (loggedInUser && (loggedInUser.role === 'reception' || loggedInUser.role === 'admin')) {
+        downloadShiftReport(true);
+    }
     if (window.fbDb) window.fbDb.ref('hotelData').off();
     window.fbAuth.signOut().then(() => {
         sessionStorage.removeItem('loggedInUser');
@@ -3454,7 +3586,7 @@ function loadDataFromStorage() {
                     ...(parsed.settings || {}),
                     roomTypes: (parsed.settings && parsed.settings.roomTypes) || hotelData.settings.roomTypes,
                     serviceCategories: (parsed.settings && parsed.settings.serviceCategories) || hotelData.settings.serviceCategories,
-                    roomStatuses: (parsed.settings && parsed.settings.roomStatuses) || hotelData.settings.roomStatuses
+                    roomStatuses: ensureDefaultRoomStatuses((parsed.settings && parsed.settings.roomStatuses) || hotelData.settings.roomStatuses)
                 },
                 purchases: parsed.purchases || [],
                 outsideIncome: parsed.outsideIncome || [],
@@ -3681,6 +3813,8 @@ function executeExport() {
             const incUSD = roomRevUSD + depUSD;
             const pIQD = purchases.reduce((s,p) => { const v = p.priceIQD!=null?p.priceIQD:(p.price||0); return s+v; }, 0);
             const pUSD = purchases.reduce((s,p) => s+(p.priceUSD||0), 0);
+            const checkInDepIQD = checkins.reduce((s,g) => s+(g.depositIQD||0), 0);
+            const checkInDepUSD = checkins.reduce((s,g) => s+(g.depositUSD||0), 0);
             addSheet('Summary', [
                 [`${hotel} — Export Report`],
                 ['Period:', range],
@@ -4246,7 +4380,7 @@ function handlePurchaseSubmit(e) {
         return;
     }
 
-    hotelData.purchases.push({ name, priceIQD, priceUSD, notes, date: new Date().toISOString() });
+    hotelData.purchases.push({ name, priceIQD, priceUSD, notes, date: new Date().toISOString(), addedBy: loggedInUser?.name || '—' });
     saveDataToStorage();
     closeModal('purchaseModal');
     document.getElementById('purchaseForm').reset();
@@ -4412,7 +4546,8 @@ function fbMerge(fbData) {
         outsideIncome:  toArr(fbData.outsideIncome),
         reservationLog: toArr(fbData.reservationLog),
         users:          toArr(fbData.users),
-        settings:   { ...hotelData.settings, ...(fbData.settings || {}) }
+        settings:   { ...hotelData.settings, ...(fbData.settings || {}),
+            roomStatuses: ensureDefaultRoomStatuses((fbData.settings && fbData.settings.roomStatuses) || hotelData.settings.roomStatuses) }
     };
 }
 
