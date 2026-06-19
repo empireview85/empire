@@ -8,7 +8,7 @@ const translations = {
         nav_checkout:'Check Out', nav_services:'Services', nav_history:'History & Records',
         nav_reports:'Reports', nav_purchases:'Purchases', nav_settings:'Settings', nav_logout:'Logout', nav_shift_report:'Shift Report',
         all_status:'All Status', status_available:'Available', status_occupied:'Occupied',
-        status_reserved:'Reserved', status_cleaning:'Cleaning', status_vacated:'Vacated',
+        status_reserved:'Reserved', status_cleaning:'Cleaning', status_checkout:'Checkout',
         all_floors:'All Floors', floor_prefix:'Floor', all_types:'All Types',
         min_price:'Min Price', max_price:'Max Price', reset:'Reset',
         edit:'Edit', details:'Details', per_night:'per night', cancel:'Cancel', close:'Close',
@@ -179,7 +179,7 @@ const translations = {
         nav_reports:'التقارير', nav_purchases:'المشتريات', nav_settings:'الإعدادات',
         nav_logout:'تسجيل الخروج', nav_shift_report:'تقرير الوردية',
         all_status:'جميع الحالات', status_available:'متاحة', status_occupied:'مشغولة',
-        status_reserved:'محجوزة', status_cleaning:'قيد التنظيف', status_vacated:'شاغرة',
+        status_reserved:'محجوزة', status_cleaning:'قيد التنظيف', status_checkout:'تم تسجيل الخروج',
         all_floors:'جميع الطوابق', floor_prefix:'الطابق', all_types:'جميع الأنواع',
         min_price:'أقل سعر', max_price:'أعلى سعر', reset:'إعادة تعيين',
         edit:'تعديل', details:'تفاصيل', per_night:'في الليلة', cancel:'إلغاء', close:'إغلاق',
@@ -398,16 +398,38 @@ function translatePage() {
 }
 
 // ==================== STATUS SYSTEM ====================
-// Adds any newly-introduced default statuses (e.g. 'vacated') to data saved before they existed,
-// without touching colors/labels the user already customized for existing statuses.
+// Adds any newly-introduced default statuses to data saved before they existed, and strips
+// out statuses that have since been retired — without touching colors/labels the user
+// already customized for statuses that are still active.
+const RETIRED_STATUSES = ['vacated'];
+// Finds any status entry that's really a duplicate of the canonical 'checkout' status —
+// e.g. a custom one a user added by hand called "check out" — so it can be merged away.
+function findCheckoutDupeIds(statuses) {
+    return (Array.isArray(statuses) ? statuses : [])
+        .filter(s => s.id !== 'checkout' && /^check\s*-?\s*out$/i.test((s.label || '').trim()))
+        .map(s => s.id);
+}
 function ensureDefaultRoomStatuses(statuses) {
-    const list = Array.isArray(statuses) ? [...statuses] : [];
+    const dupeIds = findCheckoutDupeIds(statuses);
+    const list = (Array.isArray(statuses) ? [...statuses] : [])
+        .filter(s => !RETIRED_STATUSES.includes(s.id) && !dupeIds.includes(s.id));
     const defaults = [
         { id: 'cleaning', label: 'Cleaning', color: '#3b82f6', bookable: false },
-        { id: 'vacated',  label: 'Vacated',  color: '#dc2626', bookable: false },
+        { id: 'checkout', label: 'Checkout', color: '#dc2626', bookable: false },
     ];
     defaults.forEach(d => { if (!list.find(s => s.id === d.id)) list.push(d); });
     return list;
+}
+
+// Remaps room statuses that have been retired/merged. Takes the *raw* (pre-cleanup) statuses
+// list so dupe ids can still be found — must be computed before ensureDefaultRoomStatuses() runs.
+function migrateRoomStatuses(rooms, rawStatuses) {
+    const dupeIds = findCheckoutDupeIds(rawStatuses);
+    return (rooms || []).map(r => {
+        if (r.status === 'vacated') return { ...r, status: 'cleaning' };
+        if (dupeIds.includes(r.status)) return { ...r, status: 'checkout' };
+        return r;
+    });
 }
 
 function getStatusConfig(id) {
@@ -425,7 +447,7 @@ function getCleanerStatuses() {
 }
 
 const STATUS_ICONS = {
-    available: 'fa-check-circle', cleaning: 'fa-broom', vacated: 'fa-door-open',
+    available: 'fa-check-circle', cleaning: 'fa-broom', checkout: 'fa-door-open',
     unavailable: 'fa-ban', reserved: 'fa-bookmark', occupied: 'fa-user-circle'
 };
 
@@ -475,7 +497,7 @@ let hotelData = {
         roomStatuses: [
             { id: 'available',   label: 'Available',   color: '#10b981', bookable: true  },
             { id: 'cleaning',    label: 'Cleaning',    color: '#3b82f6', bookable: false },
-            { id: 'vacated',     label: 'Vacated',     color: '#dc2626', bookable: false },
+            { id: 'checkout',    label: 'Checkout',    color: '#dc2626', bookable: false },
             { id: 'unavailable', label: 'Unavailable', color: '#ef4444', bookable: false },
             { id: 'reserved',    label: 'Reserved',    color: '#f59e0b', bookable: false, system: true },
             { id: 'occupied',    label: 'Occupied',    color: '#6b7280', bookable: false, system: true },
@@ -484,6 +506,7 @@ let hotelData = {
     activities: [],
     purchases: [],
     outsideIncome: [],
+    shiftLog: [],
     reservationLog: [],
     users: [
         { id: 1, name: 'Admin', email: 'admin@hotel.com', password: 'admin123', role: 'admin' }
@@ -916,7 +939,9 @@ function displayCheckInRooms(rooms) {
     rooms.forEach(room => {
         const cfg = getStatusConfig(room.status);
         const isAvailable = cfg.bookable;
-        const isReserved = room.status === 'reserved';
+        // Based on reservationInfo, not status — so a temp-checked-out room still shows its
+        // pending reservation even while sitting in "Checkout" (needs cleaning) for the cleaner.
+        const isReserved = !!room.reservationInfo;
 
         const isOccupied = room.status === 'occupied' && room.currentGuest;
         const isClickable = isAvailable || isOccupied || isReserved;
@@ -1656,15 +1681,14 @@ function confirmCheckOut(roomId, roomAmount, roomSymbol, serviceAmountIQD) {
     guest.balanceIQD = balanceIQD;
     guest.balanceUSD = balanceUSD;
 
-    // Revert temp-occupied rooms back to Reserved
+    // Temp-occupied rooms still need cleaning like any other checkout — restore the pending
+    // reservation info so reception doesn't lose it, but let the cleaner see it as a checkout.
     if (room.isTemporary && room.savedReservation) {
-        room.status          = 'reserved';
         room.reservationInfo = { ...room.savedReservation };
         room.isTemporary     = false;
         room.savedReservation = null;
-    } else {
-        room.status = 'vacated';
     }
+    room.status = 'checkout';
     room.currentGuest = null;
 
     const svcNote = serviceAmountIQD > 0 ? ` + IQD ${fmtIQD(serviceAmountIQD)} (services)` : '';
@@ -2034,17 +2058,88 @@ function viewGuestDetails(guestId) {
 }
 
 // ==================== REPORTS ====================
+let _reportDateFrom = null; // null = All Time
+let _reportDateTo   = null;
+
 function loadReportsPage() {
     generatePaymentMethodFilters();
-    updateReportsStats();
+    populateReportMonthYearSelect();
+    clearReportDateFilter();
     updateReportCharts();
+}
+
+// Fills the Year dropdown with the current year and the past 5 years, defaulted to this month.
+function populateReportMonthYearSelect() {
+    const yearEl = document.getElementById('repFilterMonthYear');
+    const monthEl = document.getElementById('repFilterMonthName');
+    if (!yearEl) return;
+    const now = new Date();
+    const thisYear = now.getFullYear();
+    if (!yearEl.options.length) {
+        for (let y = thisYear; y >= thisYear - 5; y--) {
+            const opt = document.createElement('option');
+            opt.value = y; opt.textContent = y;
+            yearEl.appendChild(opt);
+        }
+    }
+    yearEl.value = thisYear;
+    if (monthEl) monthEl.value = now.getMonth();
+}
+
+function applyReportDateFilter(type) {
+    if (type === 'day') {
+        const v = document.getElementById('repFilterDay')?.value;
+        if (!v) return;
+        _reportDateFrom = new Date(v + 'T00:00:00');
+        _reportDateTo   = new Date(v + 'T23:59:59');
+    } else if (type === 'range') {
+        const fromV = document.getElementById('repFilterRangeFrom')?.value;
+        const toV   = document.getElementById('repFilterRangeTo')?.value;
+        if (!fromV || !toV) { showToast('Pick both a From and To date, then click "Show Range".', 'error'); return; }
+        const from = new Date(fromV + 'T00:00:00');
+        const to   = new Date(toV + 'T23:59:59');
+        if (from > to) { showToast('The "From" date must be before the "To" date.', 'error'); return; }
+        _reportDateFrom = from;
+        _reportDateTo   = to;
+    } else if (type === 'month') {
+        const m = parseInt(document.getElementById('repFilterMonthName')?.value);
+        const y = parseInt(document.getElementById('repFilterMonthYear')?.value);
+        if (Number.isNaN(m) || Number.isNaN(y)) return;
+        _reportDateFrom = new Date(y, m, 1, 0, 0, 0, 0);
+        _reportDateTo   = new Date(y, m + 1, 0, 23, 59, 59, 999);
+    }
+    updateReportFilterLabel();
+    updateReportsStats();
     updateDepositBreakdown();
+}
+
+function clearReportDateFilter() {
+    _reportDateFrom = null;
+    _reportDateTo   = null;
+    const dayEl = document.getElementById('repFilterDay');
+    const rangeFromEl = document.getElementById('repFilterRangeFrom');
+    const rangeToEl = document.getElementById('repFilterRangeTo');
+    if (dayEl) dayEl.value = '';
+    if (rangeFromEl) rangeFromEl.value = '';
+    if (rangeToEl) rangeToEl.value = '';
+    updateReportFilterLabel();
+    updateReportsStats();
+    updateDepositBreakdown();
+}
+
+function updateReportFilterLabel() {
+    const el = document.getElementById('repFilterLabel');
+    if (!el) return;
+    el.textContent = _reportDateFrom
+        ? `Showing: ${_reportDateFrom.toLocaleDateString()} – ${_reportDateTo.toLocaleDateString()}`
+        : 'Showing: All Time';
 }
 
 function updateDepositBreakdown() {
     const filter = document.querySelector('input[name="depositSourceFilter"]:checked')?.value || 'all';
-    const guests  = hotelData.guests;
-    const resLog  = hotelData.reservationLog || [];
+    const inRange = d => { if (!_reportDateFrom) return true; if (!d) return false; const dt = new Date(d); return dt >= _reportDateFrom && dt <= _reportDateTo; };
+    const guests  = _reportDateFrom ? hotelData.guests.filter(g => inRange(g.checkIn)) : hotelData.guests;
+    const resLog  = _reportDateFrom ? (hotelData.reservationLog || []).filter(e => inRange(e.reservedAt)) : (hotelData.reservationLog || []);
 
     // Guest check-in deposits
     const gCashIQD = guests.reduce((s, g) => s + (g.depositCashIQD || 0), 0);
@@ -2094,21 +2189,27 @@ function resetPaymentFilters() {
 
 function updateReportsStats() {
     const selectedPayments = getSelectedPaymentMethods();
+    const inRange = d => { if (!_reportDateFrom) return true; if (!d) return false; const dt = new Date(d); return dt >= _reportDateFrom && dt <= _reportDateTo; };
+
     const checkedOutGuests = hotelData.guests.filter(g => {
         const hasCheckout = g.checkedOutAt || (g.totalSpent && g.totalSpent > 0);
+        if (!hasCheckout) return false;
+        if (_reportDateFrom && !(g.checkedOutAt && inRange(g.checkedOutAt))) return false;
         const paymentMatch = !g.paymentMethod || selectedPayments.includes(g.paymentMethod);
-        return hasCheckout && paymentMatch;
+        return paymentMatch;
     });
     const roomRevIQD = checkedOutGuests.filter(g => g.roomCurrency === 'IQD').reduce((s, g) => s + (g.roomAmountPaid || 0), 0);
     const roomRevUSD = checkedOutGuests.filter(g => g.roomCurrency === '$').reduce((s, g) => s + (g.roomAmountPaid || 0), 0);
     const servicesIQD = checkedOutGuests.reduce((s, g) => s + (g.serviceAmountIQD || 0), 0);
     // Check-in deposits (from guests who checked in, not just checked out)
-    const checkInDepositsIQD = hotelData.guests.reduce((s, g) => s + (g.depositIQD || 0), 0);
-    const checkInDepositsUSD = hotelData.guests.reduce((s, g) => s + (g.depositUSD || 0), 0);
+    const checkInGuests = _reportDateFrom ? hotelData.guests.filter(g => inRange(g.checkIn)) : hotelData.guests;
+    const checkInDepositsIQD = checkInGuests.reduce((s, g) => s + (g.depositIQD || 0), 0);
+    const checkInDepositsUSD = checkInGuests.reduce((s, g) => s + (g.depositUSD || 0), 0);
     const totalGuests = checkedOutGuests.length;
 
     // Reservation deposits (all entries — they stay in revenue even if cancelled)
-    const resLog = hotelData.reservationLog || [];
+    const resLogAll = hotelData.reservationLog || [];
+    const resLog = _reportDateFrom ? resLogAll.filter(e => inRange(e.reservedAt)) : resLogAll;
     const depositIQD = resLog.reduce((s, e) => s + (e.depositIQD || 0), 0);
     const depositUSD = resLog.reduce((s, e) => s + (e.depositUSD || 0), 0);
 
@@ -2117,7 +2218,8 @@ function updateReportsStats() {
     const incomeUSD = roomRevUSD + depositUSD + checkInDepositsUSD;
 
     // Purchases
-    const purchases = hotelData.purchases || [];
+    const purchasesAll = hotelData.purchases || [];
+    const purchases = _reportDateFrom ? purchasesAll.filter(p => inRange(p.date)) : purchasesAll;
     const purchIQD = purchases.reduce((s, p) => s + (p.priceIQD != null ? p.priceIQD : (p.price || 0)), 0);
     const purchUSD = purchases.reduce((s, p) => s + (p.priceUSD || 0), 0);
 
@@ -2392,16 +2494,16 @@ function updateRoomStatusChart() {
     const occupied = hotelData.rooms.filter(r => r.status === 'occupied').length;
     const reserved = hotelData.rooms.filter(r => r.status === 'reserved').length;
     const cleaning = hotelData.rooms.filter(r => r.status === 'cleaning').length;
-    const vacated  = hotelData.rooms.filter(r => r.status === 'vacated').length;
+    const checkout = hotelData.rooms.filter(r => r.status === 'checkout').length;
 
     if (charts.roomStatus) charts.roomStatus.destroy();
 
     charts.roomStatus = new window['Chart'](ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Vacated'],
+            labels: ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Checkout'],
             datasets: [{
-                data: [available, occupied, reserved, cleaning, vacated],
+                data: [available, occupied, reserved, cleaning, checkout],
                 backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#dc2626'],
                 borderColor: '#fff',
                 borderWidth: 3
@@ -2631,9 +2733,6 @@ function loadCleanerPage() {
     let rooms = hotelData.rooms;
     if (selFloor !== 'all') rooms = rooms.filter(r => String(r.floor) === selFloor);
     if (selStatus !== 'all') rooms = rooms.filter(r => r.status === selStatus);
-    // Sort: cleaning (urgent) first, vacated second, then the rest
-    const statusPriority = { cleaning: 0, vacated: 1 };
-    rooms = [...rooms].sort((a, b) => (statusPriority[a.status] ?? 99) - (statusPriority[b.status] ?? 99));
 
     if (rooms.length === 0) {
         grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#9ca3af;">${t('no_data')}</div>`;
@@ -2650,18 +2749,12 @@ function loadCleanerPage() {
         const guestLine = room.currentGuest
             ? `<div style="font-size:0.75rem;color:white;opacity:0.75;margin-top:2px;"><i class="fas fa-user" style="margin-right:4px;"></i>${room.currentGuest.name || ''}</div>`
             : '';
-        const priorityBadge = room.status === 'cleaning'
-            ? `<div style="font-size:0.68rem;font-weight:700;background:rgba(255,255,255,0.25);color:white;border-radius:20px;padding:2px 8px;margin-top:5px;display:inline-block;letter-spacing:0.05em;">⚡ CLEAN NOW</div>`
-            : room.status === 'vacated'
-            ? `<div style="font-size:0.68rem;font-weight:700;background:rgba(255,255,255,0.25);color:white;border-radius:20px;padding:2px 8px;margin-top:5px;display:inline-block;letter-spacing:0.05em;">🕐 CLEAN AFTER</div>`
-            : '';
         return `<div style="background:white;border-radius:18px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.1);transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform=''">
             <div style="background:${cfg.color};padding:20px 18px;display:flex;align-items:center;justify-content:space-between;">
                 <div>
                     <div style="color:white;font-size:1.25rem;font-weight:800;line-height:1.2;">${t('room_prefix')} ${room.number}</div>
                     <div style="color:rgba(255,255,255,0.8);font-size:0.78rem;margin-top:3px;">${t('floor_prefix')} ${room.floor} &nbsp;·&nbsp; ${room.type}</div>
                     ${guestLine}
-                    ${priorityBadge}
                 </div>
                 <i class="fas ${icon}" style="color:rgba(255,255,255,0.5);font-size:2.2em;"></i>
             </div>
@@ -3240,6 +3333,7 @@ function handleLogin(e) {
         .then(dataSnap => {
             const fbData = dataSnap.val();
             if (fbData) { hotelData = fbMerge(fbData); localStorage.setItem('hotelData', JSON.stringify(hotelData)); }
+            startShiftSession();
             if (btn) btn.disabled = false;
             showApp();
             setupFirebaseRealtimeListener();
@@ -3278,29 +3372,111 @@ function applyRoleUI() {
     // Cleaner nav visible to all three roles — always labelled "Room Status"
 }
 
-function downloadShiftReport(autoExcel = false) {
-    const now        = new Date();
-    const pad        = n => String(n).padStart(2, '0');
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const isToday    = d => { if (!d) return false; const dt = new Date(d); return dt >= todayStart && dt <= todayEnd; };
-    const esc        = s => String(s == null ? '—' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// ==================== SHIFT SESSIONS ====================
+// Tracks actual login→logout sessions per staff member (not calendar days), so a shift that
+// crosses midnight stays together in one report instead of being split across two dates.
+function startShiftSession() {
+    const staff = loggedInUser?.name || loggedInUser?.email || '—';
+    if (!Array.isArray(hotelData.shiftLog)) hotelData.shiftLog = [];
+    // Close any stale open shift for this staff first (e.g. browser closed without logging out)
+    hotelData.shiftLog.forEach(s => { if (s.staff === staff && !s.logoutAt) s.logoutAt = new Date().toISOString(); });
+    hotelData.shiftLog.push({
+        id: Math.random().toString(36).substring(2, 11),
+        staff,
+        loginAt: new Date().toISOString(),
+        logoutAt: null
+    });
+    saveDataToStorage();
+}
 
-    const hotel     = hotelData.settings?.hotelName || 'Hotel';
-    const staff     = loggedInUser?.name || loggedInUser?.email || '—';
+// Closes the current staff member's open shift. Returns its id (or null if none was open).
+function endShiftSession() {
+    const staff = loggedInUser?.name || loggedInUser?.email || '—';
+    if (!Array.isArray(hotelData.shiftLog)) return null;
+    const open = [...hotelData.shiftLog].reverse().find(s => s.staff === staff && !s.logoutAt);
+    if (!open) return null;
+    open.logoutAt = new Date().toISOString();
+    saveDataToStorage();
+    return open.id;
+}
+
+// Ensures the current staff member always has an open shift to fall back to — covers sessions
+// that were already logged in before this feature existed (no shiftLog entry yet).
+function getOrStartCurrentShift() {
+    const staff = loggedInUser?.name || loggedInUser?.email || '—';
+    if (!Array.isArray(hotelData.shiftLog)) hotelData.shiftLog = [];
+    let open = [...hotelData.shiftLog].reverse().find(s => s.staff === staff && !s.logoutAt);
+    if (!open) {
+        open = { id: Math.random().toString(36).substring(2, 11), staff, loginAt: new Date().toISOString(), logoutAt: null };
+        hotelData.shiftLog.push(open);
+        saveDataToStorage();
+    }
+    return open;
+}
+
+function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null) {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const esc = s => String(s == null ? '—' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    const hotel = hotelData.settings?.hotelName || 'Hotel';
+    const staff = loggedInUser?.name || loggedInUser?.email || '—';
+    const byMe  = name => !(!name || name === '—') && name === staff;
+
+    // Shifts are tracked by actual login→logout time, not calendar day, so a shift that
+    // crosses midnight (e.g. 10pm–6am) stays together as one report instead of being split.
+    // Only auto-open a "current" shift when no specific one was requested — otherwise (e.g. right
+    // after logout just closed it) this would immediately re-open a brand-new duplicate session.
+    if (!shiftId) getOrStartCurrentShift();
+    const allMyShifts = (hotelData.shiftLog || [])
+        .filter(s => s.staff === staff)
+        .sort((a, b) => new Date(b.loginAt) - new Date(a.loginAt));
+
+    const monthKeyOf   = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+    const monthLabelOf = d => d.toLocaleString([], { month: 'long', year: 'numeric' });
+
+    // Resolve which shift we're showing: explicit shift id wins, then a shift inside the
+    // requested month, then fall back to the most recent shift overall.
+    let shift = (shiftId && allMyShifts.find(s => s.id === shiftId)) || null;
+    if (!shift && monthKey) {
+        shift = allMyShifts.find(s => monthKeyOf(new Date(s.loginAt)) === monthKey) || null;
+    }
+    if (!shift) shift = allMyShifts[0];
+
+    const activeMonthKey = monthKeyOf(new Date(shift.loginAt));
+    const myShifts = allMyShifts.filter(s => monthKeyOf(new Date(s.loginAt)) === activeMonthKey);
+
+    const shiftStart = new Date(shift.loginAt);
+    const shiftEnd    = shift.logoutAt ? new Date(shift.logoutAt) : now;
+    const inShift = d => { if (!d) return false; const dt = new Date(d); return dt >= shiftStart && dt <= shiftEnd; };
+    const fmtShiftTime = d => d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const shiftLabel = `${fmtShiftTime(shiftStart)} → ${shift.logoutAt ? fmtShiftTime(shiftEnd) : 'now (current)'}`;
+    const shiftOptionsHtml = myShifts.map(s => {
+        const st = new Date(s.loginAt);
+        const en = s.logoutAt ? new Date(s.logoutAt) : null;
+        const label = `${fmtShiftTime(st)} → ${en ? fmtShiftTime(en) : 'now (current)'}`;
+        return `<option value="${s.id}" ${s.id === shift.id ? 'selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+    // One option per distinct month that has at least one shift, most recent first
+    const monthKeys = [...new Set(allMyShifts.map(s => monthKeyOf(new Date(s.loginAt))))];
+    const monthOptionsHtml = monthKeys.map(k => {
+        const [y, m] = k.split('-').map(Number);
+        const label = monthLabelOf(new Date(y, m - 1, 1));
+        return `<option value="${k}" ${k === activeMonthKey ? 'selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+
     const allGuests = [...(hotelData.guests || [])];
     const resLog    = [...(hotelData.reservationLog || [])];
     const allRooms  = [...(hotelData.rooms || [])];
-    const byMe      = name => !(!name || name === '—') && name === staff;
 
-    const checkInsToday  = allGuests.filter(g => isToday(g.checkIn)      && byMe(g.checkedInBy));
-    const checkOutsToday = allGuests.filter(g => isToday(g.checkedOutAt) && byMe(g.checkedOutBy));
-    const reservesToday  = resLog.filter(e => isToday(e.reservedAt)      && byMe(e.reservedBy));
+    const checkInsToday  = allGuests.filter(g => inShift(g.checkIn)      && byMe(g.checkedInBy));
+    const checkOutsToday = allGuests.filter(g => inShift(g.checkedOutAt) && byMe(g.checkedOutBy));
+    const reservesToday  = resLog.filter(e => inShift(e.reservedAt)      && byMe(e.reservedBy));
 
     const servicesToday = [];
     allGuests.forEach(g => {
         if (!Array.isArray(g.orders)) return;
-        g.orders.filter(o => isToday(o.timestamp) && byMe(o.addedBy)).forEach(o => {
+        g.orders.filter(o => inShift(o.timestamp) && byMe(o.addedBy)).forEach(o => {
             const room = allRooms.find(r => r.id === g.roomId);
             servicesToday.push({ guestName: g.name, roomNum: room ? room.number : '—', order: o, isCheckedOut: !!g.checkedOutAt });
         });
@@ -3320,19 +3496,19 @@ function downloadShiftReport(autoExcel = false) {
     const svcActiveIQD = servicesToday.filter(s => !s.isCheckedOut).reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
     const svcTotalIQD  = servicesToday.reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
 
-    // Outside income added by this staff member today
-    const outsideIncomeToday = (hotelData.outsideIncome || []).filter(p => isToday(p.date) && byMe(p.addedBy));
+    // Outside income added by this staff member during this shift
+    const outsideIncomeToday = (hotelData.outsideIncome || []).filter(p => inShift(p.date) && byMe(p.addedBy));
     const oiIQD = outsideIncomeToday.reduce((sum, p) => sum + (p.priceIQD||0), 0);
     const oiUSD = outsideIncomeToday.reduce((sum, p) => sum + (p.priceUSD||0), 0);
 
-    // Purchases made by this staff member today (deducted from vault)
-    const purchasesToday = (hotelData.purchases || []).filter(p => isToday(p.date) && byMe(p.addedBy));
+    // Purchases made by this staff member during this shift (deducted from vault)
+    const purchasesToday = (hotelData.purchases || []).filter(p => inShift(p.date) && byMe(p.addedBy));
     const purchIQD = purchasesToday.reduce((sum, p) => sum + (p.priceIQD != null ? p.priceIQD : (p.price||0)), 0);
     const purchUSD = purchasesToday.reduce((sum, p) => sum + (p.priceUSD||0), 0);
 
     const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + svcActiveIQD + oiIQD - purchIQD;
     const grandUSD = ciCashUSD + coCashUSD + resCashUSD + oiUSD - purchUSD;
-    const dateStr  = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    const dateStr  = `${shiftStart.getFullYear()}-${pad(shiftStart.getMonth()+1)}-${pad(shiftStart.getDate())}`;
 
     // ── HTML table builder (shared for Excel + Print) ──
     function buildTableHtml(forPrint) {
@@ -3351,8 +3527,8 @@ function downloadShiftReport(autoExcel = false) {
         // Header
         h += `<tr><td colspan="8" style="padding:14px;font-size:17px;font-weight:700;color:#fff;background:${C.title};text-align:center;letter-spacing:2px;">${esc(hotel)} — SHIFT REPORT</td></tr>`;
         h += `<tr><td colspan="8" style="padding:7px 10px;background:${C.even};"><b>Staff:</b> ${esc(staff)}</td></tr>`;
-        h += `<tr><td colspan="8" style="padding:7px 10px;background:${C.even};"><b>Date:</b> ${now.toLocaleDateString()} &nbsp;&nbsp; <b>Generated:</b> ${now.toLocaleString()}</td></tr>`;
-        h += `<tr><td colspan="8" style="padding:6px 10px;background:${C.note};color:#92400e;font-style:italic;">Filtered to this staff member's activity today only</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:7px 10px;background:${C.even};"><b>Shift:</b> ${esc(shiftLabel)} &nbsp;&nbsp; <b>Generated:</b> ${now.toLocaleString()}</td></tr>`;
+        h += `<tr><td colspan="8" style="padding:6px 10px;background:${C.note};color:#92400e;font-style:italic;">Filtered to this staff member's activity during this shift only</td></tr>`;
         h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
 
         // CHECK-IN DEPOSITS
@@ -3491,7 +3667,15 @@ function downloadShiftReport(autoExcel = false) {
                         display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
                 <div>
                     <div style="font-size:17px;font-weight:700;letter-spacing:1px;">Shift Report</div>
-                    <div style="font-size:12px;opacity:0.82;margin-top:2px;">${esc(staff)} &mdash; ${now.toLocaleDateString()}</div>
+                    <div style="font-size:12px;opacity:0.82;margin-top:2px;">${esc(staff)} &mdash; ${esc(shiftLabel)}</div>
+                    <div style="display:flex;gap:6px;margin-top:6px;">
+                        <select id="srMonthSelect" style="font-size:12px;padding:4px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.18);color:#fff;cursor:pointer;">
+                            ${monthOptionsHtml}
+                        </select>
+                        <select id="srShiftSelect" style="font-size:12px;padding:4px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.18);color:#fff;cursor:pointer;max-width:240px;">
+                            ${shiftOptionsHtml}
+                        </select>
+                    </div>
                 </div>
                 <div style="display:flex;gap:10px;align-items:center;">
                     <button id="srExcelBtn" style="background:#10b981;color:#fff;border:none;border-radius:8px;
@@ -3515,6 +3699,8 @@ function downloadShiftReport(autoExcel = false) {
 
     document.getElementById('srCloseBtn').onclick  = () => overlay.remove();
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('srShiftSelect').onchange = (e) => downloadShiftReport(false, e.target.value, activeMonthKey);
+    document.getElementById('srMonthSelect').onchange = (e) => downloadShiftReport(false, null, e.target.value);
 
     document.getElementById('srExcelBtn').onclick = () => {
         const tableHtml = buildTableHtml(false);
@@ -3554,7 +3740,8 @@ function downloadShiftReport(autoExcel = false) {
 function logout() {
     if (!confirm(t('logout_confirm') || 'Are you sure you want to logout?')) return;
     if (loggedInUser && (loggedInUser.role === 'reception' || loggedInUser.role === 'admin')) {
-        downloadShiftReport(true);
+        const closedShiftId = endShiftSession();
+        downloadShiftReport(true, closedShiftId);
     }
     if (window.fbDb) window.fbDb.ref('hotelData').off();
     window.fbAuth.signOut().then(() => {
@@ -3578,6 +3765,7 @@ function loadDataFromStorage() {
         const stored = localStorage.getItem('hotelData');
         if (stored) {
             const parsed = JSON.parse(stored);
+            const rawStatuses = (parsed.settings && parsed.settings.roomStatuses) || hotelData.settings.roomStatuses;
             hotelData = {
                 ...hotelData,
                 ...parsed,
@@ -3586,12 +3774,13 @@ function loadDataFromStorage() {
                     ...(parsed.settings || {}),
                     roomTypes: (parsed.settings && parsed.settings.roomTypes) || hotelData.settings.roomTypes,
                     serviceCategories: (parsed.settings && parsed.settings.serviceCategories) || hotelData.settings.serviceCategories,
-                    roomStatuses: ensureDefaultRoomStatuses((parsed.settings && parsed.settings.roomStatuses) || hotelData.settings.roomStatuses)
+                    roomStatuses: ensureDefaultRoomStatuses(rawStatuses)
                 },
                 purchases: parsed.purchases || [],
                 outsideIncome: parsed.outsideIncome || [],
+                shiftLog: parsed.shiftLog || [],
                 activities: parsed.activities || [],
-                rooms: parsed.rooms || [],
+                rooms: migrateRoomStatuses(parsed.rooms || [], rawStatuses),
                 guests: parsed.guests || [],
                 orders: parsed.orders || [],
                 priceHistory: parsed.priceHistory || [],
@@ -4536,18 +4725,20 @@ function toArr(val) {
 }
 
 function fbMerge(fbData) {
+    const rawStatuses = (fbData.settings && fbData.settings.roomStatuses) || hotelData.settings.roomStatuses;
     return {
         ...hotelData,
         ...fbData,
-        rooms:      toArr(fbData.rooms).map(r => ({ ...r, priceHistory: toArr(r.priceHistory) })),
+        rooms:      migrateRoomStatuses(toArr(fbData.rooms).map(r => ({ ...r, priceHistory: toArr(r.priceHistory) })), rawStatuses),
         guests:     toArr(fbData.guests).map(g => ({ ...g, orders: toArr(g.orders) })),
         activities:     toArr(fbData.activities),
         purchases:      toArr(fbData.purchases),
         outsideIncome:  toArr(fbData.outsideIncome),
+        shiftLog:       toArr(fbData.shiftLog),
         reservationLog: toArr(fbData.reservationLog),
         users:          toArr(fbData.users),
         settings:   { ...hotelData.settings, ...(fbData.settings || {}),
-            roomStatuses: ensureDefaultRoomStatuses((fbData.settings && fbData.settings.roomStatuses) || hotelData.settings.roomStatuses) }
+            roomStatuses: ensureDefaultRoomStatuses(rawStatuses) }
     };
 }
 
@@ -4635,6 +4826,7 @@ function handleFirstRun(e) {
                 .then(() => window.fbDb.ref('hotelData').set(hotelData));
         })
         .then(() => {
+            startShiftSession();
             if (btn) btn.disabled = false;
             document.getElementById('firstRunOverlay').style.display = 'none';
             showApp();
