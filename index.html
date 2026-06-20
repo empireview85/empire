@@ -1461,6 +1461,17 @@
                         <i class="fas fa-download"></i> <span data-i18n="btn_export_data">Export Data</span>
                     </button>
                 </div>
+
+                <div class="stat-card mt-6" style="border:2px solid #fecaca;background:#fff5f5;">
+                    <h3 class="text-lg font-bold mb-2 text-red-700"><i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone</h3>
+                    <p class="text-gray-500 text-xs mb-4">
+                        Going live? This permanently deletes all guests, check-ins/outs, reservations, purchases, outside income, services, activity log, and shift history.
+                        Room numbers/types/prices and all login accounts are kept &mdash; only the room status resets to Available. This cannot be undone.
+                    </p>
+                    <button class="btn btn-danger" onclick="resetToProduction()">
+                        <i class="fas fa-trash-alt"></i> Reset Database for Production
+                    </button>
+                </div>
             </div>
         </div>
 
