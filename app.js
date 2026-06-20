@@ -138,6 +138,11 @@ const translations = {
         btn_group:'Group', lbl_group:'Group',
         confirm_group_checkin:'Check in this room as a Group (no guest details, no charges)?',
         toast_group_checkin:'Room checked in as Group.',
+        btn_change_room:'Change Room', modal_change_room:'Change Reserved Room',
+        label_select_new_room:'Move reservation to',
+        toast_room_changed:'Reservation moved to the new room.',
+        err_select_room:'Please select a room.',
+        err_no_other_rooms:'No other available rooms to move this reservation to.',
         label_arrival_date:'Expected Arrival Date',
         label_agreed_price:'Agreed Price / Night',
         label_deposit:'Deposit Paid (IQD)',
@@ -309,6 +314,11 @@ const translations = {
         btn_group:'مجموعة', lbl_group:'مجموعة',
         confirm_group_checkin:'تسجيل دخول هذه الغرفة كمجموعة (بدون بيانات نزيل وبدون رسوم)؟',
         toast_group_checkin:'تم تسجيل دخول الغرفة كمجموعة.',
+        btn_change_room:'تغيير الغرفة', modal_change_room:'تغيير الغرفة المحجوزة',
+        label_select_new_room:'نقل الحجز إلى',
+        toast_room_changed:'تم نقل الحجز إلى الغرفة الجديدة.',
+        err_select_room:'يرجى اختيار غرفة.',
+        err_no_other_rooms:'لا توجد غرف أخرى متاحة لنقل هذا الحجز إليها.',
         label_arrival_date:'تاريخ الوصول المتوقع',
         label_agreed_price:'السعر المتفق / ليلة',
         label_deposit:'العربون المدفوع (د.ع)',
@@ -972,6 +982,10 @@ function displayCheckInRooms(rooms) {
                             style="flex:1;padding:5px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">
                             <i class="fas fa-clock"></i> Temp
                         </button>
+                        <button onclick="openChangeRoomModal(${room.id});event.stopPropagation();"
+                            style="padding:5px 10px;background:#ede9fe;color:#7c3aed;border:none;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;" title="${t('btn_change_room')||'Change Room'}">
+                            <i class="fas fa-exchange-alt"></i>
+                        </button>
                         <button onclick="cancelReservation(${room.id});event.stopPropagation();"
                             style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;">
                             <i class="fas fa-times"></i>
@@ -1012,9 +1026,14 @@ function displayCheckInRooms(rooms) {
                        </button>
                    </div>`
                 : isOccupied
-                    ? `<button style="width:100%;margin-top:8px;padding:5px 8px;font-size:0.75rem;font-weight:600;background:#3b82f6;color:white;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onclick="openRoomServiceModal(${room.id});event.stopPropagation();">
-                           <i class="fas fa-plus"></i> ${t('btn_add_service') || 'Add Service'}
-                       </button>`
+                    ? `<div style="display:flex;gap:5px;margin-top:8px;">
+                           <button style="flex:1;padding:5px 8px;font-size:0.75rem;font-weight:600;background:#3b82f6;color:white;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onclick="openRoomServiceModal(${room.id});event.stopPropagation();">
+                               <i class="fas fa-plus"></i> ${t('btn_add_service') || 'Add Service'}
+                           </button>
+                           <button style="padding:5px 10px;background:#ede9fe;color:#7c3aed;border:none;border-radius:7px;cursor:pointer;" onclick="openChangeRoomModal(${room.id});event.stopPropagation();" title="${t('btn_change_room')||'Change Room'}">
+                               <i class="fas fa-exchange-alt"></i>
+                           </button>
+                       </div>`
                     : (!isReserved ? `<p class="text-xs text-gray-400 text-center mt-2">${cfg.label}</p>` : '')
             }
         `;
@@ -2929,6 +2948,101 @@ function cancelReservation(roomId) {
     loadCheckInPage();
 }
 
+let _changingRoomId = null;
+let _changingRoomMode = null; // 'reservation' or 'guest'
+
+function openChangeRoomModal(roomId) {
+    const room = hotelData.rooms.find(r => r.id === roomId);
+    if (!room) return;
+    const isGuestMove = !!(room.currentGuest && room.status === 'occupied');
+    if (!isGuestMove && !room.reservationInfo) return;
+
+    _changingRoomId = roomId;
+    _changingRoomMode = isGuestMove ? 'guest' : 'reservation';
+
+    const candidates = hotelData.rooms.filter(r => r.id !== roomId && getStatusConfig(r.status).bookable);
+    const select = document.getElementById('changeRoomSelect');
+    if (!candidates.length) {
+        select.innerHTML = `<option value="">${t('err_no_other_rooms') || 'No other available rooms to move this reservation to.'}</option>`;
+    } else {
+        select.innerHTML = candidates
+            .map(r => `<option value="${r.id}">${t('room_prefix')} ${r.number} — ${r.type} — $${r.price}/${t('per_night')}</option>`)
+            .join('');
+    }
+
+    const info = document.getElementById('changeRoomCurrentInfo');
+    if (info) {
+        const guestName = isGuestMove ? room.currentGuest.name : room.reservationInfo.guestName;
+        const label = isGuestMove ? (t('guest_label') || 'Guest') : t('reserved_for');
+        info.innerHTML = `<b>${label}:</b> ${guestName} &nbsp;·&nbsp; ${t('room_prefix')} ${room.number} → ?`;
+    }
+
+    openModal('changeRoomModal');
+}
+
+function confirmChangeRoom() {
+    if (!requireOnline()) return;
+    const oldRoom = hotelData.rooms.find(r => r.id === _changingRoomId);
+    if (!oldRoom) return;
+
+    const newRoomId = parseInt(document.getElementById('changeRoomSelect')?.value);
+    if (!newRoomId) { showToast(t('err_select_room'), 'error'); return; }
+    const newRoom = hotelData.rooms.find(r => r.id === newRoomId);
+    if (!newRoom) { showToast(t('err_select_room'), 'error'); return; }
+
+    if (_changingRoomMode === 'guest') {
+        if (!oldRoom.currentGuest) return;
+        const guest = hotelData.guests.find(g => g.id === oldRoom.currentGuest.id);
+        if (!guest) return;
+
+        guest.roomId = newRoom.id;
+        newRoom.currentGuest = { name: guest.name, id: guest.id };
+        newRoom.status = 'occupied';
+
+        // The vacated room needs cleaning, same as a normal checkout — but keep/restore any
+        // pending reservation info so reception doesn't lose track of it (same as checkout flow).
+        if (oldRoom.isTemporary && oldRoom.savedReservation) {
+            oldRoom.reservationInfo = { ...oldRoom.savedReservation };
+            oldRoom.isTemporary = false;
+            oldRoom.savedReservation = null;
+        }
+        oldRoom.status = 'checkout';
+        oldRoom.currentGuest = null;
+
+        saveDataToStorage();
+        addActivity(`Guest ${guest.name} moved from Room ${oldRoom.number} to Room ${newRoom.number}`);
+        showToast(t('toast_room_changed'), 'success');
+        closeModal('changeRoomModal');
+        loadCheckInPage();
+        populateOccupiedRooms();
+        return;
+    }
+
+    if (!oldRoom.reservationInfo) return;
+    const ri = { ...oldRoom.reservationInfo };
+    newRoom.reservationInfo = ri;
+    newRoom.status = 'reserved';
+
+    const bookable = (hotelData.settings.roomStatuses || []).find(s => s.bookable);
+    oldRoom.status = bookable ? bookable.id : 'available';
+    oldRoom.reservationInfo = null;
+
+    if (!hotelData.reservationLog) hotelData.reservationLog = [];
+    const logEntry = hotelData.reservationLog.find(e => e.roomId === oldRoom.id && e.status === 'active');
+    if (logEntry) {
+        logEntry.roomId = newRoom.id;
+        logEntry.roomNumber = newRoom.number;
+        logEntry.roomType = newRoom.type;
+    }
+
+    saveDataToStorage();
+    updateNotificationBell();
+    addActivity(`Reservation for ${ri.guestName} moved from Room ${oldRoom.number} to Room ${newRoom.number}`);
+    showToast(t('toast_room_changed'), 'success');
+    closeModal('changeRoomModal');
+    loadCheckInPage();
+}
+
 function openCheckInFromReservation(roomId) {
     const room = hotelData.rooms.find(r => r.id === roomId);
     if (!room || !room.reservationInfo) return;
@@ -3414,20 +3528,32 @@ function getOrStartCurrentShift() {
     return open;
 }
 
-function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null) {
+function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null, staffOverride = null) {
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
     const esc = s => String(s == null ? '—' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    const hotel = hotelData.settings?.hotelName || 'Hotel';
-    const staff = loggedInUser?.name || loggedInUser?.email || '—';
+    const hotel  = hotelData.settings?.hotelName || 'Hotel';
+    const myName = loggedInUser?.name || loggedInUser?.email || '—';
+    const isAdmin = loggedInUser?.role === 'admin';
+    const staff  = (isAdmin && staffOverride) ? staffOverride : myName;
+    const isOwnSession = staff === myName;
     const byMe  = name => !(!name || name === '—') && name === staff;
+
+    // Admins can browse every staff member's shifts; everyone else only sees their own.
+    const allStaffNames = isAdmin
+        ? [...new Set((hotelData.shiftLog || []).map(s => s.staff))].sort()
+        : [myName];
+    const staffOptionsHtml = allStaffNames.map(n =>
+        `<option value="${esc(n)}" ${n === staff ? 'selected' : ''}>${esc(n)}</option>`
+    ).join('');
 
     // Shifts are tracked by actual login→logout time, not calendar day, so a shift that
     // crosses midnight (e.g. 10pm–6am) stays together as one report instead of being split.
     // Only auto-open a "current" shift when no specific one was requested — otherwise (e.g. right
     // after logout just closed it) this would immediately re-open a brand-new duplicate session.
-    if (!shiftId) getOrStartCurrentShift();
+    // Never auto-open a shift while an admin is just browsing someone else's history.
+    if (!shiftId && isOwnSession) getOrStartCurrentShift();
     const allMyShifts = (hotelData.shiftLog || [])
         .filter(s => s.staff === staff)
         .sort((a, b) => new Date(b.loginAt) - new Date(a.loginAt));
@@ -3533,16 +3659,15 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null)
 
         // CHECK-IN DEPOSITS
         h += shead('Check-in Deposits', 8);
-        h += `<tr>${['#','Guest Name','Room','Check-in Time','Cash (IQD)','Cash ($)','MasterCard (IQD)','Total Deposit'].map(v=>hcell(v)).join('')}</tr>`;
+        h += `<tr>${['#','Guest Name','Room','Check-in Time','Cash (IQD)','Cash ($)','MasterCard (IQD)','Notes'].map(v=>hcell(v)).join('')}</tr>`;
         if (checkInsToday.length) {
             checkInsToday.forEach((g, i) => {
                 const room = allRooms.find(r => r.id === g.roomId);
                 const ci = g.depositCashIQD||0, cu = g.depositCashUSD||0, ca = g.depositCardIQD||0;
-                const tot = (ci+ca>0?`IQD ${fmtIQD(ci+ca)}`:'—') + (cu>0?` + $${fmtUSD(cu)}`:'');
-                h += drow([i+1, g.name||'—', room?`Room ${room.number}`:'—', g.checkIn?new Date(g.checkIn).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', tot||'—'], i);
+                h += drow([i+1, g.name||'—', room?`Room ${room.number}`:'—', g.checkIn?new Date(g.checkIn).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', g.notes||'—'], i);
             });
         } else { h += empty('No check-ins today', 8); }
-        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(ciCashIQD)}`, `$${fmtUSD(ciCashUSD)}`, `IQD ${fmtIQD(ciCardIQD)}`, `IQD ${fmtIQD(ciCashIQD+ciCardIQD)}`]);
+        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(ciCashIQD)}`, `$${fmtUSD(ciCashUSD)}`, `IQD ${fmtIQD(ciCardIQD)}`, '']);
         h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
 
         // CHECK-OUT PAYMENTS
@@ -3560,11 +3685,11 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null)
 
         // RESERVATION DEPOSITS
         h += shead('Reservation Deposits', 8);
-        h += `<tr>${['#','Guest Name','Room','Reserved At','Cash (IQD)','Cash ($)','MasterCard (IQD)',''].map(v=>hcell(v)).join('')}</tr>`;
+        h += `<tr>${['#','Guest Name','Room','Reserved At','Cash (IQD)','Cash ($)','MasterCard (IQD)','Notes'].map(v=>hcell(v)).join('')}</tr>`;
         if (reservesToday.length) {
             reservesToday.forEach((e, i) => {
                 const ci = e.depositCashIQD||0, cu = e.depositCashUSD||0, ca = e.depositCardIQD||0;
-                h += drow([i+1, e.guestName||'—', `Room ${e.roomNumber||'—'}`, e.reservedAt?new Date(e.reservedAt).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', ''], i);
+                h += drow([i+1, e.guestName||'—', `Room ${e.roomNumber||'—'}`, e.reservedAt?new Date(e.reservedAt).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', e.notes||'—'], i);
             });
         } else { h += empty('No reservations today', 8); }
         h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(resCashIQD)}`, `$${fmtUSD(resCashUSD)}`, `IQD ${fmtIQD(resCardIQD)}`, '']);
@@ -3584,25 +3709,25 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null)
 
         // OUTSIDE INCOME
         h += shead('Outside Income', 8);
-        h += `<tr>${['#','Name','Notes','Date','Price (IQD)','Price ($)','',''].map(v=>hcell(v)).join('')}</tr>`;
+        h += `<tr>${['#','Name','Date','Price (IQD)','Price ($)','','','Notes'].map(v=>hcell(v)).join('')}</tr>`;
         if (outsideIncomeToday.length) {
             outsideIncomeToday.forEach((p, i) => {
-                h += drow([i+1, p.name||'—', p.notes||'—', p.date?new Date(p.date).toLocaleString():'—', p.priceIQD>0?`IQD ${fmtIQD(p.priceIQD)}`:'—', p.priceUSD>0?`$${fmtUSD(p.priceUSD)}`:'—', '', ''], i);
+                h += drow([i+1, p.name||'—', p.date?new Date(p.date).toLocaleString():'—', p.priceIQD>0?`IQD ${fmtIQD(p.priceIQD)}`:'—', p.priceUSD>0?`$${fmtUSD(p.priceUSD)}`:'—', '', '', p.notes||'—'], i);
             });
         } else { h += empty('No outside income today', 8); }
-        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(oiIQD)}`, `$${fmtUSD(oiUSD)}`, '', '']);
+        h += sub(['','','SUBTOTAL', `IQD ${fmtIQD(oiIQD)}`, `$${fmtUSD(oiUSD)}`, '', '', '']);
         h += `<tr><td colspan="8" style="padding:6px;"></td></tr>`;
 
         // PURCHASES (DEDUCTIONS)
         h += shead('Purchases (Deductions)', 8);
-        h += `<tr>${['#','Name','Notes','Date','Price (IQD)','Price ($)','',''].map(v=>hcell(v)).join('')}</tr>`;
+        h += `<tr>${['#','Name','Date','Price (IQD)','Price ($)','','','Notes'].map(v=>hcell(v)).join('')}</tr>`;
         if (purchasesToday.length) {
             purchasesToday.forEach((p, i) => {
                 const iqd = p.priceIQD != null ? p.priceIQD : (p.price||0);
-                h += drow([i+1, p.name||'—', p.notes||'—', p.date?new Date(p.date).toLocaleString():'—', iqd>0?`IQD ${fmtIQD(iqd)}`:'—', p.priceUSD>0?`$${fmtUSD(p.priceUSD)}`:'—', '', ''], i);
+                h += drow([i+1, p.name||'—', p.date?new Date(p.date).toLocaleString():'—', iqd>0?`IQD ${fmtIQD(iqd)}`:'—', p.priceUSD>0?`$${fmtUSD(p.priceUSD)}`:'—', '', '', p.notes||'—'], i);
             });
         } else { h += empty('No purchases today', 8); }
-        h += sub(['','','','SUBTOTAL', purchIQD>0?`- IQD ${fmtIQD(purchIQD)}`:'—', purchUSD>0?`- $${fmtUSD(purchUSD)}`:'—', '', '']);
+        h += sub(['','','SUBTOTAL', purchIQD>0?`- IQD ${fmtIQD(purchIQD)}`:'—', purchUSD>0?`- $${fmtUSD(purchUSD)}`:'—', '', '', '']);
         h += `<tr><td colspan="8" style="padding:6px;"></td></tr>`;
 
         // VAULT SUMMARY
@@ -3669,6 +3794,9 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null)
                     <div style="font-size:17px;font-weight:700;letter-spacing:1px;">Shift Report</div>
                     <div style="font-size:12px;opacity:0.82;margin-top:2px;">${esc(staff)} &mdash; ${esc(shiftLabel)}</div>
                     <div style="display:flex;gap:6px;margin-top:6px;">
+                        ${isAdmin ? `<select id="srStaffSelect" style="font-size:12px;padding:4px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.18);color:#fff;cursor:pointer;">
+                            ${staffOptionsHtml}
+                        </select>` : ''}
                         <select id="srMonthSelect" style="font-size:12px;padding:4px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.18);color:#fff;cursor:pointer;">
                             ${monthOptionsHtml}
                         </select>
@@ -3699,8 +3827,9 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null)
 
     document.getElementById('srCloseBtn').onclick  = () => overlay.remove();
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-    document.getElementById('srShiftSelect').onchange = (e) => downloadShiftReport(false, e.target.value, activeMonthKey);
-    document.getElementById('srMonthSelect').onchange = (e) => downloadShiftReport(false, null, e.target.value);
+    document.getElementById('srShiftSelect').onchange = (e) => downloadShiftReport(false, e.target.value, activeMonthKey, staff);
+    document.getElementById('srMonthSelect').onchange = (e) => downloadShiftReport(false, null, e.target.value, staff);
+    document.getElementById('srStaffSelect')?.addEventListener('change', (e) => downloadShiftReport(false, null, null, e.target.value));
 
     document.getElementById('srExcelBtn').onclick = () => {
         const tableHtml = buildTableHtml(false);
