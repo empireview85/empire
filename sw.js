@@ -1,5 +1,5 @@
-const CACHE = 'hotelpro-v14';
-const ASSETS = ['./indexx.html', './app.js', './icon.svg'];
+const CACHE = 'hotelpro-v15';
+const ASSETS = ['./index.html', './app.js', './icon.svg'];
 
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
