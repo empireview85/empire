@@ -3319,6 +3319,47 @@ function removeRoomStatus(index) {
     loadStatusesSection();
 }
 
+// ==================== GO-LIVE RESET ====================
+// Wipes all test/operational data (guests, activity, purchases, outside income, shift
+// history, reservation log) while keeping the room list, room/account settings, and every
+// login account untouched. Room statuses reset to Available since their test guests/
+// reservations no longer exist after the wipe.
+function resetToProduction() {
+    if (!requireOnline()) return;
+    if (loggedInUser?.role !== 'admin') { showToast(t('access_denied'), 'error'); return; }
+
+    const warning = 'This will permanently delete ALL guests, check-ins/outs, reservations, purchases, ' +
+        'outside income, services, activity log, and shift history from the database.\n\n' +
+        'Room numbers/types/prices and all user accounts will be KEPT, but every room\'s status will reset to Available.\n\n' +
+        'This cannot be undone. Continue?';
+    if (!confirm(warning)) return;
+
+    const typed = prompt('Type RESET (all caps) to confirm permanent deletion:');
+    if (typed !== 'RESET') {
+        showToast('Reset cancelled — confirmation text did not match.', 'error');
+        return;
+    }
+
+    hotelData.rooms = (hotelData.rooms || []).map(r => ({
+        id: r.id, number: r.number, type: r.type, price: r.price,
+        capacity: r.capacity, floor: r.floor, description: r.description,
+        status: 'available', currentGuest: null, reservationInfo: null,
+        isTemporary: false, savedReservation: null, priceHistory: []
+    }));
+    hotelData.guests = [];
+    hotelData.activities = [];
+    hotelData.purchases = [];
+    hotelData.outsideIncome = [];
+    hotelData.shiftLog = [];
+    hotelData.reservationLog = [];
+    hotelData.orders = [];
+    hotelData.priceHistory = [];
+
+    saveDataToStorage();
+    showToast('Database reset for production — rooms kept, all test activity cleared.', 'success');
+    loadSettingsPage();
+}
+
 // ==================== UTILITY FUNCTIONS ====================
 function updateCurrentDate() {
     const date = new Date();
