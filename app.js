@@ -143,6 +143,11 @@ const translations = {
         toast_room_changed:'Reservation moved to the new room.',
         err_select_room:'Please select a room.',
         err_no_other_rooms:'No other available rooms to move this reservation to.',
+        btn_add_deposit:'Add Deposit', modal_add_deposit:'Add Deposit',
+        add_deposit_hint:'This amount is added on top of the deposit already paid (e.g. an extra advance for extending the stay).',
+        lbl_deposit_so_far:'Deposit paid so far',
+        err_enter_amount:'Enter at least one amount.',
+        toast_deposit_added:'Deposit added successfully!',
         label_arrival_date:'Expected Arrival Date',
         label_agreed_price:'Agreed Price / Night',
         label_deposit:'Deposit Paid (IQD)',
@@ -319,6 +324,11 @@ const translations = {
         toast_room_changed:'تم نقل الحجز إلى الغرفة الجديدة.',
         err_select_room:'يرجى اختيار غرفة.',
         err_no_other_rooms:'لا توجد غرف أخرى متاحة لنقل هذا الحجز إليها.',
+        btn_add_deposit:'إضافة عربون', modal_add_deposit:'إضافة عربون',
+        add_deposit_hint:'يُضاف هذا المبلغ إلى العربون المدفوع مسبقاً (مثلاً عربون إضافي لتمديد الإقامة).',
+        lbl_deposit_so_far:'العربون المدفوع حتى الآن',
+        err_enter_amount:'أدخل مبلغاً واحداً على الأقل.',
+        toast_deposit_added:'تمت إضافة العربون بنجاح!',
         label_arrival_date:'تاريخ الوصول المتوقع',
         label_agreed_price:'السعر المتفق / ليلة',
         label_deposit:'العربون المدفوع (د.ع)',
@@ -1029,6 +1039,9 @@ function displayCheckInRooms(rooms) {
                     ? `<div style="display:flex;gap:5px;margin-top:8px;">
                            <button style="flex:1;padding:5px 8px;font-size:0.75rem;font-weight:600;background:#3b82f6;color:white;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onclick="openRoomServiceModal(${room.id});event.stopPropagation();">
                                <i class="fas fa-plus"></i> ${t('btn_add_service') || 'Add Service'}
+                           </button>
+                           <button style="padding:5px 10px;background:#d1fae5;color:#059669;border:none;border-radius:7px;cursor:pointer;" onclick="openAddDepositModal(${room.id});event.stopPropagation();" title="${t('btn_add_deposit')||'Add Deposit'}">
+                               <i class="fas fa-hand-holding-usd"></i>
                            </button>
                            <button style="padding:5px 10px;background:#ede9fe;color:#7c3aed;border:none;border-radius:7px;cursor:pointer;" onclick="openChangeRoomModal(${room.id});event.stopPropagation();" title="${t('btn_change_room')||'Change Room'}">
                                <i class="fas fa-exchange-alt"></i>
@@ -2438,22 +2451,54 @@ function loadDashboard() {
 function updateDashboardStats() {
     const availableRooms = hotelData.rooms.filter(r => r.status === 'available').length;
     const occupiedRooms = hotelData.rooms.filter(r => r.status === 'occupied').length;
-    const totalIncome = hotelData.guests.reduce((sum, g) => sum + (g.totalSpent || 0), 0);
-    const guestCount = hotelData.guests.filter(g => {
-        const checkIn = new Date(g.checkIn);
-        const today = new Date();
-        return checkIn.toDateString() === today.toDateString();
-    }).length;
+    const isReception = loggedInUser?.role === 'reception';
 
     const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     _set('availableRoomsCount', availableRooms);
     _set('occupiedRoomsCount', occupiedRooms);
-    _set('totalIncomeCount', (hotelData.settings.currencySymbol || '$') + totalIncome.toFixed(2));
-    _set('guestsTodayCount', guestCount);
+
+    const setCardIcon = (iconId, bgId, cardId, iconClass, color, bg, borderColor) => {
+        const icon = document.getElementById(iconId);
+        if (icon) { icon.className = iconClass; icon.style.color = color; }
+        const bgEl = document.getElementById(bgId);
+        if (bgEl) bgEl.style.background = bg;
+        const card = document.getElementById(cardId);
+        if (card) card.style.borderLeftColor = borderColor;
+    };
+
+    if (isReception) {
+        // Reception cares about cleaning workload, not money — swap cards 3/4 accordingly.
+        const cleaningCount = hotelData.rooms.filter(r => r.status === 'cleaning').length;
+        const checkoutCount = hotelData.rooms.filter(r => r.status === 'checkout').length;
+        _set('dashCard3Label', t('status_cleaning') || 'Cleaning');
+        _set('totalIncomeCount', cleaningCount);
+        _set('dashCard4Label', t('status_checkout') || 'Checkout');
+        _set('guestsTodayCount', checkoutCount);
+        setCardIcon('dashCard3Icon', 'dashCard3IconBg', 'dashCard3', 'fas fa-broom', '#3b82f6', '#dbeafe', '#3b82f6');
+        setCardIcon('dashCard4Icon', 'dashCard4IconBg', 'dashCard4', 'fas fa-door-open', '#dc2626', '#fee2e2', '#dc2626');
+    } else {
+        const totalIncome = hotelData.guests.reduce((sum, g) => sum + (g.totalSpent || 0), 0);
+        const guestCount = hotelData.guests.filter(g => {
+            const checkIn = new Date(g.checkIn);
+            const today = new Date();
+            return checkIn.toDateString() === today.toDateString();
+        }).length;
+        _set('dashCard3Label', t('stat_income'));
+        _set('totalIncomeCount', (hotelData.settings.currencySymbol || '$') + totalIncome.toFixed(2));
+        _set('dashCard4Label', t('stat_guests_today'));
+        _set('guestsTodayCount', guestCount);
+        setCardIcon('dashCard3Icon', 'dashCard3IconBg', 'dashCard3', 'fas fa-dollar-sign', '#667eea', '#e0e7ff', '#667eea');
+        setCardIcon('dashCard4Icon', 'dashCard4IconBg', 'dashCard4', 'fas fa-users', '#f59e0b', '#fef3c7', '#f59e0b');
+    }
 }
 
 function updateDashboardCharts() {
-    updateDailyIncomeChart();
+    const isReception = loggedInUser?.role === 'reception';
+    const dailyCard = document.getElementById('dashDailyIncomeCard');
+    const chartsRow = document.getElementById('dashChartsRow');
+    if (dailyCard) dailyCard.style.display = isReception ? 'none' : '';
+    if (chartsRow) chartsRow.style.gridTemplateColumns = isReception ? '1fr' : '';
+    if (!isReception) updateDailyIncomeChart();
     updateRoomStatusChart();
 }
 
@@ -2809,9 +2854,11 @@ function openReserveModal(roomId) {
         info.innerHTML = `<b>${t('room_prefix')} ${room.number}</b> &nbsp;·&nbsp; ${room.type} &nbsp;·&nbsp; ${t('floor_prefix')} ${room.floor}
             <span style="float:${currentLang==='ar'?'left':'right'};font-weight:700;color:#667eea;">$${room.price}/${t('per_night')}</span>`;
     }
-    // Pre-fill price
-    const priceEl = document.getElementById('reservePrice');
-    if (priceEl) priceEl.value = room.price;
+    // Pre-fill price — room.price is denominated in USD
+    const priceUSDEl = document.getElementById('reservePriceUSD');
+    if (priceUSDEl) priceUSDEl.value = room.price;
+    const priceIQDEl = document.getElementById('reservePriceIQD');
+    if (priceIQDEl) priceIQDEl.value = '';
     // Set default arrival to now (local time)
     const arrEl = document.getElementById('reserveArrivalDate');
     if (arrEl) {
@@ -2861,11 +2908,14 @@ function confirmReservation(e) {
     const depositUSD = depositCashUSD + depositCardUSD;
     const paymentMethod = document.getElementById('reservePaymentMethod')?.value || '';
     const notes = (document.getElementById('reserveNotes')?.value || '').trim();
+    const priceIQD = parseFloat((document.getElementById('reservePriceIQD')?.value || '').replace(/,/g, '')) || 0;
+    const priceUSD = parseFloat(document.getElementById('reservePriceUSD')?.value) || 0;
     const ri = {
         guestName:   document.getElementById('reserveGuestName').value.trim(),
         phone:       document.getElementById('reservePhone').value.trim(),
         arrivalDate: document.getElementById('reserveArrivalDate').value,
-        price:       parseFloat(document.getElementById('reservePrice').value) || room.price,
+        priceIQD, priceUSD,
+        price:       priceUSD || priceIQD || room.price, // legacy single-currency fallback
         depositCashIQD, depositCashUSD, depositCardIQD, depositCardUSD,
         depositIQD, depositUSD,
         paymentMethod,
@@ -3043,6 +3093,76 @@ function confirmChangeRoom() {
     loadCheckInPage();
 }
 
+let _addDepositRoomId = null;
+
+// Adds an extra deposit/advance on top of what a guest already paid at check-in (e.g. they
+// extend their stay mid-way and pay another advance). Tracked with its own timestamp/staff so
+// the Shift Report can credit it to whoever actually collected it, not just whoever checked the guest in.
+function openAddDepositModal(roomId) {
+    const room = hotelData.rooms.find(r => r.id === roomId);
+    if (!room || !room.currentGuest) return;
+    const guest = hotelData.guests.find(g => g.id === room.currentGuest.id);
+    if (!guest) return;
+    _addDepositRoomId = roomId;
+
+    ['addDepositCashIQD', 'addDepositCashUSD', 'addDepositCardIQD'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    const info = document.getElementById('addDepositCurrentInfo');
+    if (info) {
+        const parts = [];
+        if ((guest.depositCashIQD||0) > 0) parts.push(`${t('lbl_cash')||'Cash'} IQD ${fmtIQD(guest.depositCashIQD)}`);
+        if ((guest.depositCashUSD||0) > 0) parts.push(`${t('lbl_cash')||'Cash'} $${guest.depositCashUSD.toFixed(2)}`);
+        if ((guest.depositCardIQD||0) > 0) parts.push(`${t('lbl_mastercard')||'MasterCard'} IQD ${fmtIQD(guest.depositCardIQD)}`);
+        info.innerHTML = `<b>${guest.name}</b> &nbsp;·&nbsp; ${t('room_prefix')} ${room.number}<br>
+            <span style="color:#6b7280;">${t('lbl_deposit_so_far')||'Deposit paid so far'}: ${parts.length ? parts.join(' + ') : '—'}</span>`;
+    }
+
+    openModal('addDepositModal');
+}
+
+function confirmAddDeposit() {
+    if (!requireOnline()) return;
+    const room = hotelData.rooms.find(r => r.id === _addDepositRoomId);
+    if (!room || !room.currentGuest) return;
+    const guest = hotelData.guests.find(g => g.id === room.currentGuest.id);
+    if (!guest) return;
+
+    const cashIQD = parseFloat((document.getElementById('addDepositCashIQD')?.value || '').replace(/,/g, '')) || 0;
+    const cashUSD = parseFloat(document.getElementById('addDepositCashUSD')?.value) || 0;
+    const cardIQD = parseFloat((document.getElementById('addDepositCardIQD')?.value || '').replace(/,/g, '')) || 0;
+
+    if (cashIQD <= 0 && cashUSD <= 0 && cardIQD <= 0) {
+        showToast(t('err_enter_amount') || 'Enter at least one amount.', 'error');
+        return;
+    }
+
+    guest.depositCashIQD = (guest.depositCashIQD || 0) + cashIQD;
+    guest.depositCashUSD = (guest.depositCashUSD || 0) + cashUSD;
+    guest.depositCardIQD = (guest.depositCardIQD || 0) + cardIQD;
+    guest.depositIQD = guest.depositCashIQD + guest.depositCardIQD;
+    guest.depositUSD = guest.depositCashUSD + (guest.depositCardUSD || 0);
+
+    if (!Array.isArray(guest.depositLog)) guest.depositLog = [];
+    guest.depositLog.push({
+        cashIQD, cashUSD, cardIQD,
+        addedAt: new Date().toISOString(),
+        addedBy: loggedInUser?.name || '—'
+    });
+
+    const parts = [];
+    if (cashIQD > 0) parts.push(`IQD ${fmtIQD(cashIQD)}`);
+    if (cashUSD > 0) parts.push(`$${cashUSD.toFixed(2)}`);
+    if (cardIQD > 0) parts.push(`MasterCard IQD ${fmtIQD(cardIQD)}`);
+    addActivity(`Additional deposit of ${parts.join(' + ')} added for ${guest.name} — Room ${room.number}`);
+    saveDataToStorage();
+    showToast(t('toast_deposit_added') || 'Deposit added successfully!', 'success');
+    closeModal('addDepositModal');
+    loadCheckInPage();
+}
+
 function openCheckInFromReservation(roomId) {
     const room = hotelData.rooms.find(r => r.id === roomId);
     if (!room || !room.reservationInfo) return;
@@ -3050,11 +3170,17 @@ function openCheckInFromReservation(roomId) {
     openCheckInModal(roomId);
     if (ri.guestName) document.getElementById('guestName').value = ri.guestName;
     if (ri.phone)     document.getElementById('guestPhone').value = ri.phone;
-    if (ri.price) {
+    if (ri.priceIQD || ri.priceUSD || ri.price) {
         resetPriceFields();
-        document.getElementById('basePriceUSD').value = ri.price;
-        document.getElementById('basePriceIQD').value = '';
-        lockOtherPriceField('basePriceUSD', 'basePriceIQD');
+        if (ri.priceIQD > 0) {
+            document.getElementById('basePriceIQD').value = Math.round(ri.priceIQD).toLocaleString('en-US');
+            document.getElementById('basePriceUSD').value = '';
+            lockOtherPriceField('basePriceIQD', 'basePriceUSD');
+        } else {
+            document.getElementById('basePriceUSD').value = ri.priceUSD || ri.price;
+            document.getElementById('basePriceIQD').value = '';
+            lockOtherPriceField('basePriceUSD', 'basePriceIQD');
+        }
     }
 
     // Pre-fill deposit fields from the reservation
@@ -3319,6 +3445,47 @@ function removeRoomStatus(index) {
     loadStatusesSection();
 }
 
+// ==================== GO-LIVE RESET ====================
+// Wipes all test/operational data (guests, activity, purchases, outside income, shift
+// history, reservation log) while keeping the room list, room/account settings, and every
+// login account untouched. Room statuses reset to Available since their test guests/
+// reservations no longer exist after the wipe.
+function resetToProduction() {
+    if (!requireOnline()) return;
+    if (loggedInUser?.role !== 'admin') { showToast(t('access_denied'), 'error'); return; }
+
+    const warning = 'This will permanently delete ALL guests, check-ins/outs, reservations, purchases, ' +
+        'outside income, services, activity log, and shift history from the database.\n\n' +
+        'Room numbers/types/prices and all user accounts will be KEPT, but every room\'s status will reset to Available.\n\n' +
+        'This cannot be undone. Continue?';
+    if (!confirm(warning)) return;
+
+    const typed = prompt('Type RESET (all caps) to confirm permanent deletion:');
+    if (typed !== 'RESET') {
+        showToast('Reset cancelled — confirmation text did not match.', 'error');
+        return;
+    }
+
+    hotelData.rooms = (hotelData.rooms || []).map(r => ({
+        id: r.id, number: r.number, type: r.type, price: r.price,
+        capacity: r.capacity, floor: r.floor, description: r.description,
+        status: 'available', currentGuest: null, reservationInfo: null,
+        isTemporary: false, savedReservation: null, priceHistory: []
+    }));
+    hotelData.guests = [];
+    hotelData.activities = [];
+    hotelData.purchases = [];
+    hotelData.outsideIncome = [];
+    hotelData.shiftLog = [];
+    hotelData.reservationLog = [];
+    hotelData.orders = [];
+    hotelData.priceHistory = [];
+
+    saveDataToStorage();
+    showToast('Database reset for production — rooms kept, all test activity cleared.', 'success');
+    loadSettingsPage();
+}
+
 // ==================== UTILITY FUNCTIONS ====================
 function updateCurrentDate() {
     const date = new Date();
@@ -3461,7 +3628,7 @@ function handleLogin(e) {
 }
 
 const PAGE_ACCESS = {
-    dashboard: ['admin'],
+    dashboard: ['admin', 'reception'],
     rooms: ['admin'],
     checkIn: ['admin', 'reception'],
     checkOut: ['admin', 'reception'],
@@ -3528,6 +3695,19 @@ function getOrStartCurrentShift() {
     return open;
 }
 
+// Admin shortcut: jump straight to a staff member's open (live, still logged in) session,
+// instead of having to dig through the Month/Shift dropdowns to find the one marked "(current)".
+function jumpToCurrentSession() {
+    const staffName = document.getElementById('srStaffSelect')?.value;
+    if (!staffName) return;
+    const open = [...(hotelData.shiftLog || [])].reverse().find(s => s.staff === staffName && !s.logoutAt);
+    if (!open) {
+        showToast(`${staffName} is not currently logged in.`, 'error');
+        return;
+    }
+    downloadShiftReport(false, open.id, null, staffName);
+}
+
 function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null, staffOverride = null) {
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
@@ -3568,6 +3748,7 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         shift = allMyShifts.find(s => monthKeyOf(new Date(s.loginAt)) === monthKey) || null;
     }
     if (!shift) shift = allMyShifts[0];
+    const isLiveSession = !shift.logoutAt; // staff is logged in right now, viewing this session live
 
     const activeMonthKey = monthKeyOf(new Date(shift.loginAt));
     const myShifts = allMyShifts.filter(s => monthKeyOf(new Date(s.loginAt)) === activeMonthKey);
@@ -3608,6 +3789,17 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         });
     });
 
+    // Extra deposits added mid-stay (e.g. guest extends their stay and pays another advance) —
+    // tracked separately from the check-in deposit so they credit whoever actually collected them.
+    const additionalDepositsToday = [];
+    allGuests.forEach(g => {
+        if (!Array.isArray(g.depositLog)) return;
+        g.depositLog.filter(d => inShift(d.addedAt) && byMe(d.addedBy)).forEach(d => {
+            const room = allRooms.find(r => r.id === g.roomId);
+            additionalDepositsToday.push({ guestName: g.name, roomNum: room ? room.number : '—', entry: d });
+        });
+    });
+
     // ── Totals ──
     let ciCashIQD = 0, ciCashUSD = 0, ciCardIQD = 0;
     checkInsToday.forEach(g => { ciCashIQD += g.depositCashIQD||0; ciCashUSD += g.depositCashUSD||0; ciCardIQD += g.depositCardIQD||0; });
@@ -3627,13 +3819,16 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
     const oiIQD = outsideIncomeToday.reduce((sum, p) => sum + (p.priceIQD||0), 0);
     const oiUSD = outsideIncomeToday.reduce((sum, p) => sum + (p.priceUSD||0), 0);
 
+    let adCashIQD = 0, adCashUSD = 0, adCardIQD = 0;
+    additionalDepositsToday.forEach(({ entry: d }) => { adCashIQD += d.cashIQD||0; adCashUSD += d.cashUSD||0; adCardIQD += d.cardIQD||0; });
+
     // Purchases made by this staff member during this shift (deducted from vault)
     const purchasesToday = (hotelData.purchases || []).filter(p => inShift(p.date) && byMe(p.addedBy));
     const purchIQD = purchasesToday.reduce((sum, p) => sum + (p.priceIQD != null ? p.priceIQD : (p.price||0)), 0);
     const purchUSD = purchasesToday.reduce((sum, p) => sum + (p.priceUSD||0), 0);
 
-    const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + svcActiveIQD + oiIQD - purchIQD;
-    const grandUSD = ciCashUSD + coCashUSD + resCashUSD + oiUSD - purchUSD;
+    const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + svcActiveIQD + oiIQD + adCashIQD + adCardIQD - purchIQD;
+    const grandUSD = ciCashUSD + coCashUSD + resCashUSD + oiUSD + adCashUSD - purchUSD;
     const dateStr  = `${shiftStart.getFullYear()}-${pad(shiftStart.getMonth()+1)}-${pad(shiftStart.getDate())}`;
 
     // ── HTML table builder (shared for Excel + Print) ──
@@ -3695,6 +3890,17 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(resCashIQD)}`, `$${fmtUSD(resCashUSD)}`, `IQD ${fmtIQD(resCardIQD)}`, '']);
         h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
 
+        // ADDITIONAL DEPOSITS (added mid-stay, e.g. guest extends and pays another advance)
+        h += shead('Additional Deposits (Mid-Stay)', 8);
+        h += `<tr>${['#','Guest Name','Room','Time','Cash (IQD)','Cash ($)','MasterCard (IQD)',''].map(v=>hcell(v)).join('')}</tr>`;
+        if (additionalDepositsToday.length) {
+            additionalDepositsToday.forEach(({ guestName, roomNum, entry: d }, i) => {
+                h += drow([i+1, guestName||'—', `Room ${roomNum}`, d.addedAt?new Date(d.addedAt).toLocaleString():'—', d.cashIQD>0?`IQD ${fmtIQD(d.cashIQD)}`:'—', d.cashUSD>0?`$${fmtUSD(d.cashUSD)}`:'—', d.cardIQD>0?`IQD ${fmtIQD(d.cardIQD)}`:'—', ''], i);
+            });
+        } else { h += empty('No additional deposits today', 8); }
+        h += sub(['','','','SUBTOTAL', `IQD ${fmtIQD(adCashIQD)}`, `$${fmtUSD(adCashUSD)}`, `IQD ${fmtIQD(adCardIQD)}`, '']);
+        h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
+
         // SERVICES
         h += shead('Services Added Today', 8);
         h += `<tr>${['#','Guest Name','Room','Service','Qty','Unit Price (IQD)','Total (IQD)','Status'].map(v=>hcell(v)).join('')}</tr>`;
@@ -3751,6 +3957,8 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         h += vrow('Check-out Payments (MasterCard)',   `IQD ${fmtIQD(coCardIQD)}`,  '—');
         h += vrow('Reservation Deposits (Cash)',       `IQD ${fmtIQD(resCashIQD)}`, `$${fmtUSD(resCashUSD)}`);
         h += vrow('Reservation Deposits (MasterCard)', `IQD ${fmtIQD(resCardIQD)}`, '—');
+        h += vrow('Additional Deposits (Cash)',        `IQD ${fmtIQD(adCashIQD)}`,  `$${fmtUSD(adCashUSD)}`);
+        h += vrow('Additional Deposits (MasterCard)',  `IQD ${fmtIQD(adCardIQD)}`,  '—');
         h += vrow('Services (Active Rooms)',           `IQD ${fmtIQD(svcActiveIQD)}`,'—');
         h += vrow('Outside Income',                   `IQD ${fmtIQD(oiIQD)}`,       `$${fmtUSD(oiUSD)}`);
         h += vneg('Purchases (Deducted)',              purchIQD>0?`- IQD ${fmtIQD(purchIQD)}`:'—', purchUSD>0?`- $${fmtUSD(purchUSD)}`:'—');
@@ -3791,12 +3999,18 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
             <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:16px 22px;
                         display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
                 <div>
-                    <div style="font-size:17px;font-weight:700;letter-spacing:1px;">Shift Report</div>
+                    <div style="font-size:17px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;gap:8px;">
+                        Shift Report
+                        ${isLiveSession ? `<span style="font-size:11px;font-weight:700;background:#dc2626;color:#fff;border-radius:20px;padding:2px 9px;letter-spacing:0.05em;animation:pulse-animation 2s infinite;">&#9679; LIVE NOW</span>` : ''}
+                    </div>
                     <div style="font-size:12px;opacity:0.82;margin-top:2px;">${esc(staff)} &mdash; ${esc(shiftLabel)}</div>
-                    <div style="display:flex;gap:6px;margin-top:6px;">
+                    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
                         ${isAdmin ? `<select id="srStaffSelect" style="font-size:12px;padding:4px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.18);color:#fff;cursor:pointer;">
                             ${staffOptionsHtml}
-                        </select>` : ''}
+                        </select>
+                        <button id="srCurrentBtn" style="font-size:12px;padding:4px 10px;border-radius:6px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px;">
+                            <i class="fas fa-broadcast-tower"></i> Current Session
+                        </button>` : ''}
                         <select id="srMonthSelect" style="font-size:12px;padding:4px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.18);color:#fff;cursor:pointer;">
                             ${monthOptionsHtml}
                         </select>
@@ -3830,6 +4044,7 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
     document.getElementById('srShiftSelect').onchange = (e) => downloadShiftReport(false, e.target.value, activeMonthKey, staff);
     document.getElementById('srMonthSelect').onchange = (e) => downloadShiftReport(false, null, e.target.value, staff);
     document.getElementById('srStaffSelect')?.addEventListener('change', (e) => downloadShiftReport(false, null, null, e.target.value));
+    document.getElementById('srCurrentBtn')?.addEventListener('click', jumpToCurrentSession);
 
     document.getElementById('srExcelBtn').onclick = () => {
         const tableHtml = buildTableHtml(false);
