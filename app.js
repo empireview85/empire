@@ -73,6 +73,11 @@ const translations = {
         label_currency:'Currency', label_tax_rate:'Tax Rate (%)',
         exchange_rate_title:'Exchange Rate', label_exchange_rate:'1 USD = ? IQD',
         exchange_rate_hint:'Used to convert between USD and IQD at checkout (room price, deposit, services, and payment all get compared using this rate).',
+        checkout_cutoff_title:'Late Checkout Rule', label_checkout_cutoff:'Checkout Time',
+        checkout_cutoff_hint:'If a guest is still in the room past this time on their checkout date, another night is automatically added to the bill.',
+        lbl_late_checkout:'Late Checkout — Extra Night Added',
+        late_checkout_note:'Guest was still in the room past', on_their_planned_checkout_date:'on their planned checkout date',
+        checkout_date_updated_to:'checkout date updated to',
         room_config_title:'Room Configuration', label_total_rooms:'Total Rooms',
         room_types_title:'Room Types', btn_add_room_type:'Add Room Type',
         service_items_title:'Service Items', btn_add_service_item:'Add Service Item',
@@ -254,6 +259,11 @@ const translations = {
         label_currency:'العملة', label_tax_rate:'نسبة الضريبة (%)',
         exchange_rate_title:'سعر الصرف', label_exchange_rate:'1 دولار = ؟ دينار عراقي',
         exchange_rate_hint:'يُستخدم لتحويل العملة بين الدولار والدينار العراقي عند تسجيل الخروج (سعر الغرفة، العربون، الخدمات، والدفع تتم مقارنتها جميعها بهذا السعر).',
+        checkout_cutoff_title:'قاعدة التأخير عن وقت الخروج', label_checkout_cutoff:'وقت تسجيل الخروج',
+        checkout_cutoff_hint:'إذا بقي النزيل في الغرفة بعد هذا الوقت في يوم تسجيل الخروج، تُضاف ليلة أخرى تلقائياً إلى الفاتورة.',
+        lbl_late_checkout:'تأخير عن الخروج — تمت إضافة ليلة',
+        late_checkout_note:'بقي النزيل في الغرفة بعد', on_their_planned_checkout_date:'في يوم تسجيل الخروج المحدد له',
+        checkout_date_updated_to:'تم تحديث تاريخ الخروج إلى',
         room_config_title:'إعدادات الغرف', label_total_rooms:'إجمالي الغرف',
         room_types_title:'أنواع الغرف', btn_add_room_type:'إضافة نوع غرفة',
         service_items_title:'عناصر الخدمة', btn_add_service_item:'إضافة خدمة',
@@ -372,6 +382,15 @@ function t(key) {
 
 function fmtIQD(n) {
     return Math.round(n).toLocaleString('en-US');
+}
+
+// Formats a Date as "YYYY-MM-DDTHH:MM" using LOCAL wall-clock time — unlike .toISOString()
+// (which is always UTC), this matches what <input type="datetime-local"> expects/stores, and
+// is what guest.checkIn/checkOut are kept as throughout the app. Mixing the two silently shifts
+// times by the local UTC offset every time a value round-trips through .toISOString().
+function toLocalDateTimeString(date) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function catName(cat) {
@@ -503,7 +522,7 @@ let hotelData = {
         currencySymbol: '$',
         taxRate: 0,
         exchangeRate: 1500,
-        totalRooms: 20,
+        checkoutCutoffHour: 13, // 1:00 PM — staying past this on the checkout date auto-adds another night
         paymentMethods: ['Cash', 'Card', 'Bank Transfer'],
         serviceCategories: [
             {en:'Food',ar:'طعام'},
@@ -544,7 +563,6 @@ let isOnline = true;
 // ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', function() {
     loadDataFromStorage();
-    initializeRooms();
     updateCurrentDate();
     setupEventListeners();
     setInterval(updateCurrentDate, 1000);
@@ -718,31 +736,6 @@ function populateFilterSelects(floorElId, typeElId) {
 }
 
 // ==================== ROOM MANAGEMENT ====================
-function initializeRooms() {
-    if (hotelData.rooms.length === 0) {
-        const roomTypes = ['Single', 'Double', 'Suite', 'Deluxe'];
-        let roomNum = 101;
-        const prices = { 'Single': 50, 'Double': 75, 'Suite': 150, 'Deluxe': 200 };
-
-        for (let i = 0; i < hotelData.settings.totalRooms; i++) {
-            const type = roomTypes[i % roomTypes.length];
-            hotelData.rooms.push({
-                id: i + 1,
-                number: roomNum,
-                type: type,
-                price: prices[type],
-                capacity: type === 'Single' ? 1 : type === 'Double' ? 2 : type === 'Suite' ? 3 : 4,
-                status: 'available', // available, occupied, reserved, cleaning
-                floor: Math.floor((roomNum - 100) / 10) + 1,
-                currentGuest: null,
-                description: `Comfortable ${type} room with modern amenities`
-            });
-            roomNum++;
-        }
-    }
-    saveDataToStorage();
-}
-
 let _editingRoomId = null;
 
 function openRoomModal(roomId = null) {
@@ -821,6 +814,62 @@ function handleRoomSubmit(e) {
     closeModal('roomModal');
     showToast(t('toast_room_saved'), 'success');
     loadRoomsPage();
+}
+
+// Generates rooms <floor><01..N> across a floor range in one go (e.g. floors 2-9, 6 rooms/floor
+// -> 201-206, 301-306, ... 901-906), so an admin doesn't have to add each room one at a time.
+// Existing room numbers are left untouched and skipped.
+function bulkGenerateRooms() {
+    if (!requireOnline()) return;
+    const floorStart = parseInt(document.getElementById('bulkRoomFloorStart')?.value);
+    const floorEnd   = parseInt(document.getElementById('bulkRoomFloorEnd')?.value);
+    const perFloor   = parseInt(document.getElementById('bulkRoomsPerFloor')?.value);
+    const type       = document.getElementById('bulkRoomType')?.value;
+    const price      = parseFloat((document.getElementById('bulkRoomPrice')?.value || '').replace(/,/g, ''));
+    const capacity   = parseInt(document.getElementById('bulkRoomCapacity')?.value);
+
+    if (!Number.isFinite(floorStart) || !Number.isFinite(floorEnd) || floorStart > floorEnd) {
+        showToast('Enter a valid floor range.', 'error');
+        return;
+    }
+    if (!Number.isFinite(perFloor) || perFloor < 1) {
+        showToast('Enter how many rooms per floor.', 'error');
+        return;
+    }
+    if (!type) {
+        showToast('Select a room type.', 'error');
+        return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+        showToast('Enter a valid price.', 'error');
+        return;
+    }
+
+    const existingNumbers = new Set(hotelData.rooms.map(r => r.number));
+    let added = 0, skipped = 0, nextId = Date.now();
+    for (let floor = floorStart; floor <= floorEnd; floor++) {
+        for (let seq = 1; seq <= perFloor; seq++) {
+            const number = floor * 100 + seq;
+            if (existingNumbers.has(number)) { skipped++; continue; }
+            hotelData.rooms.push({
+                id: nextId++,
+                number,
+                type,
+                price,
+                capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 2,
+                floor,
+                status: 'available',
+                currentGuest: null,
+                description: ''
+            });
+            existingNumbers.add(number);
+            added++;
+        }
+    }
+
+    saveDataToStorage();
+    loadRoomsPage();
+    showToast(`${added} room(s) added${skipped ? `, ${skipped} skipped (already existed)` : ''}.`, added ? 'success' : 'error');
 }
 
 function loadRoomsPage() {
@@ -1057,6 +1106,9 @@ function displayCheckInRooms(rooms) {
 let _lastCheckedInRoomId = null;
 let _checkoutBalanceIQD = 0;
 let _checkoutRate = 1500;
+// Tracks which room's checkout form is currently rendered, so actions taken elsewhere (like adding
+// a mid-stay deposit) can refresh it in place instead of leaving stale deposit/balance figures on screen.
+let _currentCheckoutRoomId = null;
 
 // Live-updates the "Remaining" line under the checkout payment fields as the user types,
 // so the receptionist doesn't have to use an outside calculator to figure out what's left.
@@ -1271,7 +1323,7 @@ function recalcCheckout() {
     const checkOut = new Date(checkIn);
     checkOut.setDate(checkOut.getDate() + nights);
 
-    if (checkOutHidden) checkOutHidden.value = checkOut.toISOString().slice(0, 16);
+    if (checkOutHidden) checkOutHidden.value = toLocalDateTimeString(checkOut);
     if (checkOutDisplay) {
         checkOutDisplay.textContent = checkOut.toLocaleString([], {
             weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
@@ -1407,8 +1459,8 @@ function groupCheckIn(roomId) {
         name: t('lbl_group') || 'Group',
         phone: '', nationality: '', idType: '', idNumber: '', email: '',
         numGuests: 1,
-        checkIn: now.toISOString(),
-        checkOut: checkOut.toISOString(),
+        checkIn: toLocalDateTimeString(now),
+        checkOut: toLocalDateTimeString(checkOut),
         basePriceIQD: 0, basePriceUSD: 0, basePrice: 0,
         depositCashIQD: 0, depositCashUSD: 0, depositCardIQD: 0, depositCardUSD: 0,
         depositIQD: 0, depositUSD: 0,
@@ -1480,11 +1532,33 @@ function loadCheckOutForm(roomId) {
     const guest = hotelData.guests.find(g => g.id === room.currentGuest.id);
     if (!guest) return;
     if (!Array.isArray(guest.orders)) guest.orders = [];
+    _currentCheckoutRoomId = roomId;
 
     const checkInDate = new Date(guest.checkIn);
     // If checkout date is missing, default to check-in + 1 day
-    const checkOutDate = guest.checkOut ? new Date(guest.checkOut) : new Date(checkInDate.getTime() + 86400000);
-    if (!guest.checkOut) guest.checkOut = checkOutDate.toISOString();
+    let checkOutDate = guest.checkOut ? new Date(guest.checkOut) : new Date(checkInDate.getTime() + 86400000);
+    if (!guest.checkOut) guest.checkOut = toLocalDateTimeString(checkOutDate);
+
+    // Late-checkout rule: if the guest is still in the room past the cutoff time on their
+    // planned checkout date, roll the date forward a day (and again, if they're overdue by
+    // more than one day) — same as a hotel charging another night for staying past checkout time.
+    const cutoffHour = hotelData.settings.checkoutCutoffHour ?? 13;
+    const now = new Date();
+    const plannedCheckOutDate = new Date(checkOutDate);
+    let lateExtensionApplied = false;
+    while (true) {
+        const cutoffMoment = new Date(checkOutDate);
+        cutoffMoment.setHours(cutoffHour, 0, 0, 0);
+        if (now >= cutoffMoment) {
+            checkOutDate.setDate(checkOutDate.getDate() + 1);
+            lateExtensionApplied = true;
+        } else break;
+    }
+    if (lateExtensionApplied) {
+        guest.checkOut = toLocalDateTimeString(checkOutDate);
+        saveDataToStorage();
+    }
+
     const nights = Math.max(1, Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24)));
 
     // Determine room currency
@@ -1545,12 +1619,19 @@ function loadCheckOutForm(roomId) {
                     <div class="info-label">${t('check_out_label')}</div>
                     <div>
                         <input type="datetime-local" id="checkoutDateModify"
-                            value="${checkOutDate.toISOString().slice(0, 16)}"
+                            value="${toLocalDateTimeString(checkOutDate)}"
                             class="px-3 py-2 border border-gray-300 rounded text-sm font-semibold w-full"
                             onchange="modifyCheckoutDate(${roomId}, this.value)">
                         <span class="text-xs text-gray-400">${t('change_adjust')}</span>
                     </div>
                 </div>
+                ${lateExtensionApplied ? `
+                <div class="info-item" style="border-left-color: #d97706; grid-column: 1 / -1; background:#fffbeb;">
+                    <div class="info-label"><i class="fas fa-clock mr-1" style="color:#d97706;"></i>${t('lbl_late_checkout')||'Late Checkout — Extra Night Added'}</div>
+                    <div class="info-value" style="color:#92400e;font-size:0.85rem;font-weight:500;">
+                        ${t('late_checkout_note')||'Guest was still in the room past'} ${new Date(2000,0,1,cutoffHour).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})} ${t('on_their_planned_checkout_date')||'on their planned checkout date'} (${plannedCheckOutDate.toLocaleDateString()}) — ${t('checkout_date_updated_to')||'checkout date updated to'} ${checkOutDate.toLocaleDateString()}.
+                    </div>
+                </div>` : ''}
                 ${(guest.depositIQD > 0 || guest.depositUSD > 0) ? `
                 <div class="info-item" style="border-left-color: #10b981; grid-column: 1 / -1;">
                     <div class="info-label"><i class="fas fa-hand-holding-usd mr-1 text-green-600"></i>${t('lbl_deposit_paid') || 'Deposit Paid'}</div>
@@ -2448,6 +2529,24 @@ function loadDashboard() {
     updateRecentActivities();
 }
 
+// All-time money actually collected, split by how it was paid: Cash IQD, Cash USD, or MasterCard
+// (always IQD-only in this app). Pulls from check-in deposits (incl. mid-stay top-ups), checkout
+// payments, and reservation deposits — the same payment-method fields the Shift Report uses.
+function calculateTotalIncomeByMethod() {
+    let cashIQD = 0, cashUSD = 0, cardIQD = 0;
+    hotelData.guests.forEach(g => {
+        cashIQD += (g.depositCashIQD || 0) + (g.checkoutCashIQD || 0);
+        cashUSD += (g.depositCashUSD || 0) + (g.checkoutCashUSD || 0);
+        cardIQD += (g.depositCardIQD || 0) + (g.checkoutCardIQD || 0);
+    });
+    (hotelData.reservationLog || []).forEach(e => {
+        cashIQD += e.depositCashIQD || 0;
+        cashUSD += e.depositCashUSD || 0;
+        cardIQD += e.depositCardIQD || 0;
+    });
+    return { cashIQD, cashUSD, cardIQD };
+}
+
 function updateDashboardStats() {
     const availableRooms = hotelData.rooms.filter(r => r.status === 'available').length;
     const occupiedRooms = hotelData.rooms.filter(r => r.status === 'occupied').length;
@@ -2466,29 +2565,40 @@ function updateDashboardStats() {
         if (card) card.style.borderLeftColor = borderColor;
     };
 
+    const dashCard5 = document.getElementById('dashCard5');
+
     if (isReception) {
         // Reception cares about cleaning workload, not money — swap cards 3/4 accordingly.
         const cleaningCount = hotelData.rooms.filter(r => r.status === 'cleaning').length;
         const checkoutCount = hotelData.rooms.filter(r => r.status === 'checkout').length;
         _set('dashCard3Label', t('status_cleaning') || 'Cleaning');
         _set('totalIncomeCount', cleaningCount);
+        _set('totalIncomeCountIQD', '');
+        _set('totalIncomeCountCardIQD', '');
         _set('dashCard4Label', t('status_checkout') || 'Checkout');
         _set('guestsTodayCount', checkoutCount);
         setCardIcon('dashCard3Icon', 'dashCard3IconBg', 'dashCard3', 'fas fa-broom', '#3b82f6', '#dbeafe', '#3b82f6');
         setCardIcon('dashCard4Icon', 'dashCard4IconBg', 'dashCard4', 'fas fa-door-open', '#dc2626', '#fee2e2', '#dc2626');
+        if (dashCard5) dashCard5.style.display = 'none';
     } else {
-        const totalIncome = hotelData.guests.reduce((sum, g) => sum + (g.totalSpent || 0), 0);
+        const { cashIQD, cashUSD, cardIQD } = calculateTotalIncomeByMethod();
         const guestCount = hotelData.guests.filter(g => {
             const checkIn = new Date(g.checkIn);
             const today = new Date();
             return checkIn.toDateString() === today.toDateString();
         }).length;
         _set('dashCard3Label', t('stat_income'));
-        _set('totalIncomeCount', (hotelData.settings.currencySymbol || '$') + totalIncome.toFixed(2));
+        _set('totalIncomeCount', `Cash $${fmtUSD(cashUSD)}`);
+        _set('totalIncomeCountIQD', `Cash IQD ${fmtIQD(cashIQD)}`);
+        _set('totalIncomeCountCardIQD', `MasterCard IQD ${fmtIQD(cardIQD)}`);
         _set('dashCard4Label', t('stat_guests_today'));
         _set('guestsTodayCount', guestCount);
         setCardIcon('dashCard3Icon', 'dashCard3IconBg', 'dashCard3', 'fas fa-dollar-sign', '#667eea', '#e0e7ff', '#667eea');
         setCardIcon('dashCard4Icon', 'dashCard4IconBg', 'dashCard4', 'fas fa-users', '#f59e0b', '#fef3c7', '#f59e0b');
+
+        const checkoutCount = hotelData.rooms.filter(r => r.status === 'checkout').length;
+        _set('checkoutRoomsCount', checkoutCount);
+        if (dashCard5) dashCard5.style.display = '';
     }
 }
 
@@ -2614,8 +2724,27 @@ function updateRecentActivities() {
 function loadSettingsPage() {
     loadUsersSection();
 
+    const bulkTypeEl = document.getElementById('bulkRoomType');
+    if (bulkTypeEl) {
+        bulkTypeEl.innerHTML = (hotelData.settings.roomTypes || ['Single', 'Double', 'Suite', 'Deluxe'])
+            .map(tp => `<option value="${tp}">${tp}</option>`).join('');
+    }
+
     const rateEl = document.getElementById('settingsExchangeRate');
     if (rateEl) rateEl.value = Math.round(hotelData.settings.exchangeRate || 1500).toLocaleString('en-US');
+
+    const cutoffEl = document.getElementById('settingsCheckoutCutoffHour');
+    if (cutoffEl) {
+        const fmtHour = h => { const d = new Date(2000,0,1,h,0,0); return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+        if (!cutoffEl.options.length) {
+            for (let h = 0; h < 24; h++) {
+                const opt = document.createElement('option');
+                opt.value = h; opt.textContent = fmtHour(h);
+                cutoffEl.appendChild(opt);
+            }
+        }
+        cutoffEl.value = hotelData.settings.checkoutCutoffHour ?? 13;
+    }
 
     const serviceContainer = document.getElementById('serviceCategories');
     if (serviceContainer) {
@@ -2682,6 +2811,9 @@ function saveSettings() {
         const rate = parseFloat((rateEl.value || '').replace(/,/g, '')) || 0;
         if (rate > 0) hotelData.settings.exchangeRate = rate;
     }
+
+    const cutoffEl = document.getElementById('settingsCheckoutCutoffHour');
+    if (cutoffEl && cutoffEl.value !== '') hotelData.settings.checkoutCutoffHour = parseInt(cutoffEl.value);
 
     // Read edited category names from DOM inputs
     const catRows = document.querySelectorAll('#serviceCategories > div');
@@ -3161,6 +3293,9 @@ function confirmAddDeposit() {
     showToast(t('toast_deposit_added') || 'Deposit added successfully!', 'success');
     closeModal('addDepositModal');
     loadCheckInPage();
+    // If this room's checkout form is open elsewhere, refresh it too — otherwise it keeps showing
+    // the pre-top-up deposit/balance until the staff re-clicks the room in the checkout list.
+    if (_currentCheckoutRoomId === room.id) loadCheckOutForm(room.id);
 }
 
 function openCheckInFromReservation(roomId) {
@@ -3755,7 +3890,13 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
 
     const shiftStart = new Date(shift.loginAt);
     const shiftEnd    = shift.logoutAt ? new Date(shift.logoutAt) : now;
-    const inShift = d => { if (!d) return false; const dt = new Date(d); return dt >= shiftStart && dt <= shiftEnd; };
+    // Login/logout are millisecond-precise, but check-in/checkout/reservation times come from
+    // <input type="datetime-local"> and only carry minute precision. If staff log in and check a
+    // guest in within the same clock-minute, the truncated check-in time can land a few seconds
+    // *before* the precise login time and get wrongly excluded — so floor the lower bound to the
+    // start of its minute to match the granularity of what it's being compared against.
+    const shiftStartFloor = new Date(shiftStart.getFullYear(), shiftStart.getMonth(), shiftStart.getDate(), shiftStart.getHours(), shiftStart.getMinutes(), 0, 0);
+    const inShift = d => { if (!d) return false; const dt = new Date(d); return dt >= shiftStartFloor && dt <= shiftEnd; };
     const fmtShiftTime = d => d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const shiftLabel = `${fmtShiftTime(shiftStart)} → ${shift.logoutAt ? fmtShiftTime(shiftEnd) : 'now (current)'}`;
     const shiftOptionsHtml = myShifts.map(s => {
@@ -3800,9 +3941,25 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         });
     });
 
+    // guest.depositCashIQD/USD/CardIQD are running totals that confirmAddDeposit() keeps adding to,
+    // so they already include any mid-stay top-ups. Subtract the logged top-ups back out here to get
+    // just what was collected at check-in — otherwise a top-up would be counted twice in the report
+    // (once because it's baked into the running total, once again in its own "Additional Deposits" row).
+    function checkInOnlyDeposit(g) {
+        const log = Array.isArray(g.depositLog) ? g.depositLog : [];
+        const adCashIQD = log.reduce((s, d) => s + (d.cashIQD||0), 0);
+        const adCashUSD = log.reduce((s, d) => s + (d.cashUSD||0), 0);
+        const adCardIQD = log.reduce((s, d) => s + (d.cardIQD||0), 0);
+        return {
+            cashIQD: (g.depositCashIQD||0) - adCashIQD,
+            cashUSD: (g.depositCashUSD||0) - adCashUSD,
+            cardIQD: (g.depositCardIQD||0) - adCardIQD
+        };
+    }
+
     // ── Totals ──
     let ciCashIQD = 0, ciCashUSD = 0, ciCardIQD = 0;
-    checkInsToday.forEach(g => { ciCashIQD += g.depositCashIQD||0; ciCashUSD += g.depositCashUSD||0; ciCardIQD += g.depositCardIQD||0; });
+    checkInsToday.forEach(g => { const d = checkInOnlyDeposit(g); ciCashIQD += d.cashIQD; ciCashUSD += d.cashUSD; ciCardIQD += d.cardIQD; });
 
     let coCashIQD = 0, coCashUSD = 0, coCardIQD = 0;
     checkOutsToday.forEach(g => { coCashIQD += g.checkoutCashIQD||0; coCashUSD += g.checkoutCashUSD||0; coCardIQD += g.checkoutCardIQD||0; });
@@ -3858,7 +4015,7 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         if (checkInsToday.length) {
             checkInsToday.forEach((g, i) => {
                 const room = allRooms.find(r => r.id === g.roomId);
-                const ci = g.depositCashIQD||0, cu = g.depositCashUSD||0, ca = g.depositCardIQD||0;
+                const { cashIQD: ci, cashUSD: cu, cardIQD: ca } = checkInOnlyDeposit(g);
                 h += drow([i+1, g.name||'—', room?`Room ${room.number}`:'—', g.checkIn?new Date(g.checkIn).toLocaleString():'—', ci>0?`IQD ${fmtIQD(ci)}`:'—', cu>0?`$${fmtUSD(cu)}`:'—', ca>0?`IQD ${fmtIQD(ca)}`:'—', g.notes||'—'], i);
             });
         } else { h += empty('No check-ins today', 8); }
@@ -4234,12 +4391,12 @@ function modifyCheckoutDate(roomId, newDateString) {
     // Validate: checkout date must be after check-in date
     if (newCheckOutDate <= checkInDate) {
         showToast(t('toast_checkout_after'), 'error');
-        document.getElementById('checkoutDateModify').value = new Date(guest.checkOut).toISOString().slice(0, 16);
+        document.getElementById('checkoutDateModify').value = toLocalDateTimeString(new Date(guest.checkOut));
         return;
     }
 
     // Update the guest's checkout date
-    guest.checkOut = newCheckOutDate.toISOString();
+    guest.checkOut = toLocalDateTimeString(newCheckOutDate);
     saveDataToStorage();
 
     // Reload the checkout form with updated pricing
