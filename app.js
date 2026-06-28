@@ -3337,6 +3337,23 @@ function openCheckInFromReservation(roomId) {
 function loadUsersSection() {
     const container = document.getElementById('usersContainer');
     if (!container) return;
+
+    // Self-heal automatically: if the visible list looks empty (e.g. an old reset wiped it before
+    // resetToProduction started rebuilding it on every run), pull every account straight from the
+    // `users/{uid}` path that sign-in actually relies on — no button needed, this just fixes itself
+    // the next time Settings is opened.
+    if ((!hotelData.users || !hotelData.users.length) && window.fbDb) {
+        window.fbDb.ref('users').once('value').then(snap => {
+            const accounts = snap.val() || {};
+            const rebuilt = Object.keys(accounts).map(uid => ({ uid, ...accounts[uid] }));
+            if (rebuilt.length) {
+                hotelData.users = rebuilt;
+                saveDataToStorage();
+                loadUsersSection();
+            }
+        }).catch(() => {});
+    }
+
     container.innerHTML = '';
     (hotelData.users || []).forEach((user, i) => {
         const isSelf = loggedInUser && (user.uid === loggedInUser.uid || user.email === loggedInUser.email);
@@ -3601,24 +3618,37 @@ function resetToProduction() {
         return;
     }
 
-    hotelData.rooms = (hotelData.rooms || []).map(r => ({
-        id: r.id, number: r.number, type: r.type, price: r.price,
-        capacity: r.capacity, floor: r.floor, description: r.description,
-        status: 'available', currentGuest: null, reservationInfo: null,
-        isTemporary: false, savedReservation: null, priceHistory: []
-    }));
-    hotelData.guests = [];
-    hotelData.activities = [];
-    hotelData.purchases = [];
-    hotelData.outsideIncome = [];
-    hotelData.shiftLog = [];
-    hotelData.reservationLog = [];
-    hotelData.orders = [];
-    hotelData.priceHistory = [];
+    // saveDataToStorage() below does a full overwrite of the database, including hotelData.users —
+    // a local mirror that can be stale or already-corrupted (e.g. from a past reset). Sign-in never
+    // reads that mirror; it reads each account's profile from the separate `users/{uid}` path. So on
+    // every reset, rebuild hotelData.users fresh from that authoritative path — this both prevents a
+    // stale copy from erasing accounts AND self-heals a list that's already missing accounts.
+    window.fbDb.ref('users').once('value').then(snap => {
+        const accounts = snap.val() || {};
+        const rebuilt = Object.keys(accounts).map(uid => ({ uid, ...accounts[uid] }));
+        if (rebuilt.length) hotelData.users = rebuilt;
 
-    saveDataToStorage();
-    showToast('Database reset for production — rooms kept, all test activity cleared.', 'success');
-    loadSettingsPage();
+        hotelData.rooms = (hotelData.rooms || []).map(r => ({
+            id: r.id, number: r.number, type: r.type, price: r.price,
+            capacity: r.capacity, floor: r.floor, description: r.description,
+            status: 'available', currentGuest: null, reservationInfo: null,
+            isTemporary: false, savedReservation: null, priceHistory: []
+        }));
+        hotelData.guests = [];
+        hotelData.activities = [];
+        hotelData.purchases = [];
+        hotelData.outsideIncome = [];
+        hotelData.shiftLog = [];
+        hotelData.reservationLog = [];
+        hotelData.orders = [];
+        hotelData.priceHistory = [];
+
+        saveDataToStorage();
+        showToast('Database reset for production — rooms kept, all test activity cleared.', 'success');
+        loadSettingsPage();
+    }).catch(() => {
+        showToast('Reset failed — could not verify the user list. Nothing was changed.', 'error');
+    });
 }
 
 // ==================== UTILITY FUNCTIONS ====================
