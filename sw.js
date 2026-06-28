@@ -1,4 +1,4 @@
-const CACHE = 'hotelpro-v15';
+const CACHE = 'hotelpro-v16';
 const ASSETS = ['./index.html', './app.js', './icon.svg'];
 
 self.addEventListener('install', e => {
