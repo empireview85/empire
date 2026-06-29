@@ -1198,17 +1198,23 @@
                 <span id="repFilterLabel" class="text-xs font-semibold text-blue-600" style="padding-bottom:8px;">Showing: All Time</span>
             </div>
 
-            <!-- Row 1: Income -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <!-- Row 1: Income — split strictly by how the money was actually collected (not by the
+                 room's listed price currency), and already includes deposits combined with revenue. -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                 <div class="stat-card" style="border-left:4px solid #10b981;">
-                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Total Income (IQD)</p>
+                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Total Income (Cash IQD)</p>
                     <h3 class="text-xl font-bold text-green-600 mt-1" id="totalIncomeIQDReport">IQD 0</h3>
-                    <p class="text-xs text-gray-400 mt-1">rooms + services + deposits</p>
+                    <p class="text-xs text-gray-400 mt-1">rooms + services + deposits, paid in cash IQD</p>
                 </div>
                 <div class="stat-card" style="border-left:4px solid #059669;">
-                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Total Income ($)</p>
+                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Total Income (Cash $)</p>
                     <h3 class="text-xl font-bold text-emerald-600 mt-1" id="totalIncomeUSDReport">$0</h3>
-                    <p class="text-xs text-gray-400 mt-1">rooms + deposits</p>
+                    <p class="text-xs text-gray-400 mt-1">rooms + deposits, paid in cash $</p>
+                </div>
+                <div class="stat-card" style="border-left:4px solid #2563eb;">
+                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Total Income (MasterCard IQD)</p>
+                    <h3 class="text-xl font-bold text-blue-600 mt-1" id="totalIncomeCardIQDReport">IQD 0</h3>
+                    <p class="text-xs text-gray-400 mt-1">rooms + services + deposits, paid by MasterCard</p>
                 </div>
                 <div class="stat-card" style="border-left:4px solid #ef4444;">
                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Purchases (IQD)</p>
@@ -1221,17 +1227,12 @@
                     <p class="text-xs text-gray-400 mt-1">total expenses</p>
                 </div>
             </div>
-            <!-- Row 2: Net + stats -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <!-- Row 2: stats -->
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                 <div class="stat-card" style="border-left:4px solid #667eea;background:linear-gradient(135deg,#f0f4ff,#fff);">
-                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Net Revenue (IQD)</p>
-                    <h3 class="text-xl font-bold text-indigo-600 mt-1" id="netRevenueIQDReport">IQD 0</h3>
-                    <p class="text-xs text-gray-400 mt-1">income − purchases</p>
-                </div>
-                <div class="stat-card" style="border-left:4px solid #764ba2;background:linear-gradient(135deg,#f5f3ff,#fff);">
-                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Net Revenue ($)</p>
-                    <h3 class="text-xl font-bold text-purple-600 mt-1" id="netRevenueUSDReport">$0</h3>
-                    <p class="text-xs text-gray-400 mt-1">income − purchases</p>
+                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Net Revenue (income − expenses)</p>
+                    <h3 class="text-lg font-bold text-indigo-600 mt-1" id="netRevenueIQDReport">IQD 0</h3>
+                    <h3 class="text-lg font-bold text-purple-600" id="netRevenueUSDReport">$0</h3>
                 </div>
                 <div class="stat-card" style="border-left:4px solid #8b5cf6;">
                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide" data-i18n="stat_occupancy">Occupancy Rate</p>
@@ -1242,40 +1243,6 @@
                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide" data-i18n="stat_total_guests">Total Guests</p>
                     <h3 class="text-xl font-bold text-blue-600 mt-1" id="totalGuestsReport">0</h3>
                     <p class="text-xs text-gray-400 mt-1">checked out</p>
-                </div>
-            </div>
-
-            <!-- Deposit Breakdown by Source -->
-            <div class="stat-card mb-6">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-                    <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-hand-holding-usd mr-2 text-green-500"></i>Deposit Breakdown by Source</h3>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;" id="depositSourceFilters">
-                        <label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:2px solid #e5e7eb;border-radius:8px;cursor:pointer;font-size:0.85rem;background:white;">
-                            <input type="radio" name="depositSourceFilter" value="all" checked onchange="updateDepositBreakdown()"> All
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:2px solid #16a34a;border-radius:8px;cursor:pointer;font-size:0.85rem;background:white;">
-                            <input type="radio" name="depositSourceFilter" value="cash" onchange="updateDepositBreakdown()">
-                            <i class="fas fa-money-bill-wave" style="color:#16a34a;"></i> Cash
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:2px solid #2563eb;border-radius:8px;cursor:pointer;font-size:0.85rem;background:white;">
-                            <input type="radio" name="depositSourceFilter" value="card" onchange="updateDepositBreakdown()">
-                            <i class="fas fa-credit-card" style="color:#2563eb;"></i> MasterCard
-                        </label>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="depositBreakdownCards">
-                    <div class="stat-card" style="border-left:4px solid #16a34a;">
-                        <p class="text-gray-500 text-xs font-semibold uppercase">Cash Deposit (IQD)</p>
-                        <h3 class="text-lg font-bold text-green-700 mt-1" id="depositCashIQDReport">IQD 0</h3>
-                    </div>
-                    <div class="stat-card" style="border-left:4px solid #15803d;">
-                        <p class="text-gray-500 text-xs font-semibold uppercase">Cash Deposit ($)</p>
-                        <h3 class="text-lg font-bold text-green-800 mt-1" id="depositCashUSDReport">$0</h3>
-                    </div>
-                    <div class="stat-card" style="border-left:4px solid #2563eb;">
-                        <p class="text-gray-500 text-xs font-semibold uppercase">MasterCard Deposit (IQD)</p>
-                        <h3 class="text-lg font-bold text-blue-700 mt-1" id="depositCardIQDReport">IQD 0</h3>
-                    </div>
                 </div>
             </div>
 
