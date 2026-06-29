@@ -2175,7 +2175,6 @@ let _reportDateFrom = null; // null = All Time
 let _reportDateTo   = null;
 
 function loadReportsPage() {
-    generatePaymentMethodFilters();
     populateReportMonthYearSelect();
     clearReportDateFilter();
     updateReportCharts();
@@ -2223,7 +2222,6 @@ function applyReportDateFilter(type) {
     }
     updateReportFilterLabel();
     updateReportsStats();
-    updateDepositBreakdown();
 }
 
 function clearReportDateFilter() {
@@ -2237,7 +2235,6 @@ function clearReportDateFilter() {
     if (rangeToEl) rangeToEl.value = '';
     updateReportFilterLabel();
     updateReportsStats();
-    updateDepositBreakdown();
 }
 
 function updateReportFilterLabel() {
@@ -2248,87 +2245,42 @@ function updateReportFilterLabel() {
         : 'Showing: All Time';
 }
 
-function updateDepositBreakdown() {
-    const filter = document.querySelector('input[name="depositSourceFilter"]:checked')?.value || 'all';
-    const inRange = d => { if (!_reportDateFrom) return true; if (!d) return false; const dt = new Date(d); return dt >= _reportDateFrom && dt <= _reportDateTo; };
-    const guests  = _reportDateFrom ? hotelData.guests.filter(g => inRange(g.checkIn)) : hotelData.guests;
-    const resLog  = _reportDateFrom ? (hotelData.reservationLog || []).filter(e => inRange(e.reservedAt)) : (hotelData.reservationLog || []);
-
-    // Guest check-in deposits
-    const gCashIQD = guests.reduce((s, g) => s + (g.depositCashIQD || 0), 0);
-    const gCashUSD = guests.reduce((s, g) => s + (g.depositCashUSD || 0), 0);
-    const gCardIQD = guests.reduce((s, g) => s + (g.depositCardIQD || 0), 0);
-
-    // Reservation deposits
-    const rCashIQD = resLog.reduce((s, e) => s + (e.depositCashIQD || 0), 0);
-    const rCashUSD = resLog.reduce((s, e) => s + (e.depositCashUSD || 0), 0);
-    const rCardIQD = resLog.reduce((s, e) => s + (e.depositCardIQD || 0), 0);
-
-    const totalCashIQD = gCashIQD + rCashIQD;
-    const totalCashUSD = gCashUSD + rCashUSD;
-    const totalCardIQD = gCardIQD + rCardIQD;
-
-    const showCash = filter === 'all' || filter === 'cash';
-    const showCard = filter === 'all' || filter === 'card';
-
-    const el = id => document.getElementById(id);
-    if (el('depositCashIQDReport')) el('depositCashIQDReport').textContent = showCash ? `IQD ${fmtIQD(totalCashIQD)}` : 'IQD —';
-    if (el('depositCashUSDReport')) el('depositCashUSDReport').textContent = showCash ? `$${fmtUSD(totalCashUSD)}` : '$—';
-    if (el('depositCardIQDReport')) el('depositCardIQDReport').textContent = showCard ? `IQD ${fmtIQD(totalCardIQD)}` : 'IQD —';
-}
-
-function generatePaymentMethodFilters() {
-    const container = document.getElementById('paymentMethodFilters');
-    if (!container) return;
-    const methods = hotelData.settings.paymentMethods || ['Cash', 'Card', 'Bank Transfer'];
-    container.innerHTML = methods.map(method => `
-        <label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:2px solid #e5e7eb;border-radius:8px;cursor:pointer;font-size:0.85rem;background:white;" class="payment-filter-label">
-            <input type="checkbox" value="${method}" checked onchange="updateReportsStats()" class="payment-filter-checkbox">
-            <span>${method}</span>
-        </label>
-    `).join('');
-}
-
-function getSelectedPaymentMethods() {
-    const checkboxes = document.querySelectorAll('.payment-filter-checkbox:checked');
-    return Array.from(checkboxes).map(cb => cb.value);
-}
-
-function resetPaymentFilters() {
-    document.querySelectorAll('.payment-filter-checkbox').forEach(cb => cb.checked = true);
-    updateReportsStats();
-    updateReportCharts();
-}
-
+// Total money actually collected, split by how it was paid (Cash IQD / Cash USD / MasterCard IQD —
+// MasterCard is always IQD-only in this app), not by what currency the room happened to be listed
+// in. A $100 room paid for in Iraqi cash must count as IQD income, not USD — so this never looks at
+// roomCurrency/roomAmountPaid (the room's *listed* price), only the actual payment fields. Deposits
+// and checkout payments (which already include room charges + services collected at checkout) are
+// combined into one figure per channel — there's no separate "deposit" bucket, a deposit is just
+// income collected earlier in the stay.
 function updateReportsStats() {
-    const selectedPayments = getSelectedPaymentMethods();
     const inRange = d => { if (!_reportDateFrom) return true; if (!d) return false; const dt = new Date(d); return dt >= _reportDateFrom && dt <= _reportDateTo; };
 
+    // Deposits (check-in + any mid-stay top-ups, already cumulative) count in the period they
+    // checked in, the same way the rest of this page treats deposits.
+    const checkInGuests = _reportDateFrom ? hotelData.guests.filter(g => inRange(g.checkIn)) : hotelData.guests;
+    let cashIQD = checkInGuests.reduce((s, g) => s + (g.depositCashIQD || 0), 0);
+    let cashUSD = checkInGuests.reduce((s, g) => s + (g.depositCashUSD || 0), 0);
+    let cardIQD = checkInGuests.reduce((s, g) => s + (g.depositCardIQD || 0), 0);
+
+    // Checkout payments — the actual cash/card collected at checkout (covers room charges +
+    // services + any remaining balance after the deposit), counted in the period they checked out.
     const checkedOutGuests = hotelData.guests.filter(g => {
         const hasCheckout = g.checkedOutAt || (g.totalSpent && g.totalSpent > 0);
         if (!hasCheckout) return false;
         if (_reportDateFrom && !(g.checkedOutAt && inRange(g.checkedOutAt))) return false;
-        const paymentMatch = !g.paymentMethod || selectedPayments.includes(g.paymentMethod);
-        return paymentMatch;
+        return true;
     });
-    const roomRevIQD = checkedOutGuests.filter(g => g.roomCurrency === 'IQD').reduce((s, g) => s + (g.roomAmountPaid || 0), 0);
-    const roomRevUSD = checkedOutGuests.filter(g => g.roomCurrency === '$').reduce((s, g) => s + (g.roomAmountPaid || 0), 0);
-    const servicesIQD = checkedOutGuests.reduce((s, g) => s + (g.serviceAmountIQD || 0), 0);
-    // Check-in deposits (from guests who checked in, not just checked out)
-    const checkInGuests = _reportDateFrom ? hotelData.guests.filter(g => inRange(g.checkIn)) : hotelData.guests;
-    const checkInDepositsIQD = checkInGuests.reduce((s, g) => s + (g.depositIQD || 0), 0);
-    const checkInDepositsUSD = checkInGuests.reduce((s, g) => s + (g.depositUSD || 0), 0);
+    cashIQD += checkedOutGuests.reduce((s, g) => s + (g.checkoutCashIQD || 0), 0);
+    cashUSD += checkedOutGuests.reduce((s, g) => s + (g.checkoutCashUSD || 0), 0);
+    cardIQD += checkedOutGuests.reduce((s, g) => s + (g.checkoutCardIQD || 0), 0);
     const totalGuests = checkedOutGuests.length;
 
-    // Reservation deposits (all entries — they stay in revenue even if cancelled)
+    // Reservation deposits (all entries — they stay in income even if cancelled)
     const resLogAll = hotelData.reservationLog || [];
     const resLog = _reportDateFrom ? resLogAll.filter(e => inRange(e.reservedAt)) : resLogAll;
-    const depositIQD = resLog.reduce((s, e) => s + (e.depositIQD || 0), 0);
-    const depositUSD = resLog.reduce((s, e) => s + (e.depositUSD || 0), 0);
-
-    // Total income (room revenue + services + reservation deposits + check-in deposits)
-    const incomeIQD = roomRevIQD + servicesIQD + depositIQD + checkInDepositsIQD;
-    const incomeUSD = roomRevUSD + depositUSD + checkInDepositsUSD;
+    cashIQD += resLog.reduce((s, e) => s + (e.depositCashIQD || 0), 0);
+    cashUSD += resLog.reduce((s, e) => s + (e.depositCashUSD || 0), 0);
+    cardIQD += resLog.reduce((s, e) => s + (e.depositCardIQD || 0), 0);
 
     // Purchases
     const purchasesAll = hotelData.purchases || [];
@@ -2339,12 +2291,13 @@ function updateReportsStats() {
     const occupiedRooms = hotelData.rooms.filter(r => r.status === 'occupied').length;
     const occupancyRate = hotelData.rooms.length > 0 ? ((occupiedRooms / hotelData.rooms.length) * 100).toFixed(1) : 0;
 
-    document.getElementById('totalIncomeIQDReport').textContent = `IQD ${fmtIQD(incomeIQD)}`;
-    document.getElementById('totalIncomeUSDReport').textContent = `$${fmtUSD(incomeUSD)}`;
+    document.getElementById('totalIncomeIQDReport').textContent = `IQD ${fmtIQD(cashIQD)}`;
+    document.getElementById('totalIncomeUSDReport').textContent = `$${fmtUSD(cashUSD)}`;
+    document.getElementById('totalIncomeCardIQDReport').textContent = `IQD ${fmtIQD(cardIQD)}`;
     document.getElementById('totalPurchasesIQDReport').textContent = `IQD ${fmtIQD(purchIQD)}`;
     document.getElementById('totalPurchasesUSDReport').textContent = `$${fmtUSD(purchUSD)}`;
-    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(incomeIQD - purchIQD)}`;
-    document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(incomeUSD - purchUSD)}`;
+    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(cashIQD + cardIQD - purchIQD)}`;
+    document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(cashUSD - purchUSD)}`;
     document.getElementById('occupancyRateReport').textContent = `${occupancyRate}%`;
     document.getElementById('totalGuestsReport').textContent = totalGuests;
 
@@ -4523,18 +4476,17 @@ function executeExport() {
         const activities = (hotelData.activities || []).filter(a => inRange(a.timestamp) && userMatch(a.userName));
 
         // ── SUMMARY ──
+        // Split strictly by how the money was actually collected (Cash IQD / Cash $ / MasterCard
+        // IQD), not by what currency the room happened to be listed in — a $100 room paid for in
+        // Iraqi cash is IQD income, not USD. Deposits and checkout payments (which already include
+        // room charges + services) are combined into one figure per channel, no separate deposit line.
         if (sel('exp_summary')) {
-            const roomRevIQD = checkouts.filter(g => g.roomCurrency === 'IQD').reduce((s,g) => s+(g.roomAmountPaid||0), 0);
-            const roomRevUSD = checkouts.filter(g => g.roomCurrency === '$').reduce((s,g)  => s+(g.roomAmountPaid||0), 0);
-            const svcIQD     = checkouts.reduce((s,g) => s+(g.serviceAmountIQD||0), 0);
-            const depIQD     = resLog.reduce((s,e) => s+(e.depositIQD||0), 0);
-            const depUSD     = resLog.reduce((s,e) => s+(e.depositUSD||0), 0);
-            const incIQD = roomRevIQD + svcIQD + depIQD;
-            const incUSD = roomRevUSD + depUSD;
+            let cashIQD = 0, cashUSD = 0, cardIQD = 0;
+            checkins.forEach(g => { cashIQD += g.depositCashIQD||0; cashUSD += g.depositCashUSD||0; cardIQD += g.depositCardIQD||0; });
+            checkouts.forEach(g => { cashIQD += g.checkoutCashIQD||0; cashUSD += g.checkoutCashUSD||0; cardIQD += g.checkoutCardIQD||0; });
+            resLog.forEach(e => { cashIQD += e.depositCashIQD||0; cashUSD += e.depositCashUSD||0; cardIQD += e.depositCardIQD||0; });
             const pIQD = purchases.reduce((s,p) => { const v = p.priceIQD!=null?p.priceIQD:(p.price||0); return s+v; }, 0);
             const pUSD = purchases.reduce((s,p) => s+(p.priceUSD||0), 0);
-            const checkInDepIQD = checkins.reduce((s,g) => s+(g.depositIQD||0), 0);
-            const checkInDepUSD = checkins.reduce((s,g) => s+(g.depositUSD||0), 0);
             addSheet('Summary', [
                 [`${hotel} — Export Report`],
                 ['Period:', range],
@@ -4542,14 +4494,14 @@ function executeExport() {
                 ['Generated by:', loggedInUser?.name || '—'],
                 ['User filter:', userFilter === 'all' ? 'All Users' : userFilter],
                 [],
-                ['FINANCIAL SUMMARY', 'IQD', 'USD ($)'],
-                ['Room Revenue', `IQD ${fmtIQD(roomRevIQD)}`, `$${roomRevUSD.toFixed(2)}`],
-                ['Services Revenue', `IQD ${fmtIQD(svcIQD)}`, '—'],
-                ['Reservation Deposits', `IQD ${fmtIQD(depIQD)}`, `$${depUSD.toFixed(2)}`],
-                ['Check-in Deposits', `IQD ${fmtIQD(checkInDepIQD)}`, `$${checkInDepUSD.toFixed(2)}`],
-                ['Total Income', `IQD ${fmtIQD(incIQD)}`, `$${incUSD.toFixed(2)}`],
-                ['Total Purchases', `IQD ${fmtIQD(pIQD)}`, `$${pUSD.toFixed(2)}`],
-                ['NET REVENUE', `IQD ${fmtIQD(incIQD - pIQD)}`, `$${(incUSD - pUSD).toFixed(2)}`],
+                ['FINANCIAL SUMMARY — by payment method', 'Amount'],
+                ['Total Income — Cash (IQD)', `IQD ${fmtIQD(cashIQD)}`],
+                ['Total Income — Cash ($)', `$${cashUSD.toFixed(2)}`],
+                ['Total Income — MasterCard (IQD)', `IQD ${fmtIQD(cardIQD)}`],
+                ['Total Purchases (IQD)', `IQD ${fmtIQD(pIQD)}`],
+                ['Total Purchases ($)', `$${pUSD.toFixed(2)}`],
+                ['NET REVENUE — Cash (IQD)', `IQD ${fmtIQD(cashIQD - pIQD)}`],
+                ['NET REVENUE — Cash ($)', `$${(cashUSD - pUSD).toFixed(2)}`],
                 [],
                 ['OPERATIONAL SUMMARY', 'Count'],
                 ['Check-ins (period)', checkins.length],
@@ -4559,7 +4511,7 @@ function executeExport() {
                 ['  ↳ Cancelled', resLog.filter(e => e.status==='cancelled').length],
                 ['Purchases (period)', purchases.length],
                 ['Activities logged', activities.length],
-            ], [28, 22, 16]);
+            ], [32, 22]);
         }
 
         // ── CHECK-INS ──
@@ -4582,25 +4534,29 @@ function executeExport() {
 
         // ── CHECK-OUTS ──
         if (sel('exp_checkouts')) {
-            const rows = [['#','Guest Name','Phone','Room','Type','Check-in','Check-out','Nights','Room Rev (IQD)','Room Rev ($)','Services (IQD)','Total IQD','Total ($)','Payment','Note','Checked Out By']];
+            // "Room Price" below is just the listed nightly rate for reference — the Collected
+            // columns are what was *actually* paid at checkout, by method, which is what counts as
+            // real IQD/USD/MasterCard income (a $100 room paid for in IQD cash is IQD income).
+            const rows = [['#','Guest Name','Phone','Room','Type','Check-in','Check-out','Nights','Room Price (listed)','Services (IQD)','Collected Cash (IQD)','Collected Cash ($)','Collected MasterCard (IQD)','Payment','Note','Checked Out By']];
             checkouts.forEach((g, i) => {
                 const room = hotelData.rooms.find(r => r.id === g.roomId);
                 const nights = g.checkIn && g.checkedOutAt ? Math.ceil((new Date(g.checkedOutAt)-new Date(g.checkIn))/86400000) : '—';
-                const rIQD = g.roomCurrency==='IQD' ? (g.roomAmountPaid||0) : 0;
-                const rUSD = g.roomCurrency==='$'   ? (g.roomAmountPaid||0) : 0;
-                const svc  = g.serviceAmountIQD || 0;
+                const svc = g.serviceAmountIQD || 0;
+                const listedPrice = g.roomCurrency==='IQD' ? `IQD ${fmtIQD(g.roomAmountPaid||0)}` : `$${(g.roomAmountPaid||0).toFixed(2)}`;
                 rows.push([i+1, g.name||'—', g.phone||'—',
                     room?`Room ${room.number}`:'—', room?room.type:'—',
                     g.checkIn?new Date(g.checkIn).toLocaleString():'—',
                     g.checkedOutAt?new Date(g.checkedOutAt).toLocaleString():'—',
                     nights,
-                    rIQD>0?`IQD ${fmtIQD(rIQD)}`:'—', rUSD>0?`$${rUSD.toFixed(2)}`:'—',
+                    listedPrice,
                     svc>0?`IQD ${fmtIQD(svc)}`:'—',
-                    rIQD>0?`IQD ${fmtIQD(rIQD+svc)}`:'—', rUSD>0?`$${rUSD.toFixed(2)}`:'—',
+                    g.checkoutCashIQD>0?`IQD ${fmtIQD(g.checkoutCashIQD)}`:'—',
+                    g.checkoutCashUSD>0?`$${g.checkoutCashUSD.toFixed(2)}`:'—',
+                    g.checkoutCardIQD>0?`IQD ${fmtIQD(g.checkoutCardIQD)}`:'—',
                     g.paymentMethod||'—', g.checkoutNote||'—', g.checkedOutBy||'—']);
             });
             if (rows.length===1) rows.push(['No check-outs in this period']);
-            addSheet('Check-outs', rows, [4,18,13,10,13,20,20,7,16,12,14,14,10,14,20,16]);
+            addSheet('Check-outs', rows, [4,18,13,10,13,20,20,7,16,14,16,14,18,14,20,16]);
         }
 
         // ── RESERVATIONS ──
@@ -4643,30 +4599,42 @@ function executeExport() {
         }
 
         // ── REVENUE BY ROOM ──
+        // Same fix as the Summary sheet: split by how it was actually paid (Cash IQD / Cash $ /
+        // MasterCard IQD), not by the room's listed price currency. "Services" is shown for
+        // reference only — it's already included inside Collected Cash/MasterCard (checkout
+        // payments cover room + services together), so it isn't added again into the totals.
         if (sel('exp_revenue')) {
-            const rows = [['#','Room','Type','Floor','Stays','Room Rev (IQD)','Room Rev ($)','Services (IQD)','Res. Deposits (IQD)','Res. Deposits ($)','Check-in Deposits (IQD)','Check-in Deposits ($)','Total IQD','Total ($)']];
-            let tRI=0,tRU=0,tS=0,tDI=0,tDU=0,tCDI=0,tCDU=0;
+            const rows = [['#','Room','Type','Floor','Stays','Collected Cash (IQD)','Collected Cash ($)','Collected MasterCard (IQD)','Services (IQD, included above)']];
+            let tCashIQD=0, tCashUSD=0, tCardIQD=0, tS=0;
             hotelData.rooms.forEach((room, i) => {
                 const stays = allGuests.filter(g => g.roomId===room.id && g.checkedOutAt && inRange(g.checkedOutAt));
-                const rI = stays.filter(g=>g.roomCurrency==='IQD').reduce((s,g)=>s+(g.roomAmountPaid||0),0);
-                const rU = stays.filter(g=>g.roomCurrency==='$').reduce((s,g)=>s+(g.roomAmountPaid||0),0);
+                const cashIQD = stays.reduce((s,g)=>s+(g.checkoutCashIQD||0),0);
+                const cashUSD = stays.reduce((s,g)=>s+(g.checkoutCashUSD||0),0);
+                const cardIQD = stays.reduce((s,g)=>s+(g.checkoutCardIQD||0),0);
                 const sv = stays.reduce((s,g)=>s+(g.serviceAmountIQD||0),0);
                 const roomRes = (hotelData.reservationLog||[]).filter(e=>e.roomId===room.id && inRange(e.reservedAt));
-                const dI = roomRes.reduce((s,e)=>s+(e.depositIQD||0),0);
-                const dU = roomRes.reduce((s,e)=>s+(e.depositUSD||0),0);
+                const resCashIQD = roomRes.reduce((s,e)=>s+(e.depositCashIQD||0),0);
+                const resCashUSD = roomRes.reduce((s,e)=>s+(e.depositCashUSD||0),0);
+                const resCardIQD = roomRes.reduce((s,e)=>s+(e.depositCardIQD||0),0);
                 // Check-in deposits for this room (all guests who checked in)
                 const roomGuests = allGuests.filter(g => g.roomId===room.id && inRange(g.checkIn));
-                const cI = roomGuests.reduce((s,g)=>s+(g.depositIQD||0),0);
-                const cU = roomGuests.reduce((s,g)=>s+(g.depositUSD||0),0);
-                tRI+=rI; tRU+=rU; tS+=sv; tDI+=dI; tDU+=dU; tCDI+=cI; tCDU+=cU;
+                const ciCashIQD = roomGuests.reduce((s,g)=>s+(g.depositCashIQD||0),0);
+                const ciCashUSD = roomGuests.reduce((s,g)=>s+(g.depositCashUSD||0),0);
+                const ciCardIQD = roomGuests.reduce((s,g)=>s+(g.depositCardIQD||0),0);
+
+                const totalCashIQD = cashIQD + resCashIQD + ciCashIQD;
+                const totalCashUSD = cashUSD + resCashUSD + ciCashUSD;
+                const totalCardIQD = cardIQD + resCardIQD + ciCardIQD;
+                tCashIQD+=totalCashIQD; tCashUSD+=totalCashUSD; tCardIQD+=totalCardIQD; tS+=sv;
+
                 rows.push([i+1,`Room ${room.number}`,room.type,room.floor,stays.length,
-                    rI>0?`IQD ${fmtIQD(rI)}`:'—', rU>0?`$${rU.toFixed(2)}`:'—',
-                    sv>0?`IQD ${fmtIQD(sv)}`:'—', dI>0?`IQD ${fmtIQD(dI)}`:'—', dU>0?`$${dU.toFixed(2)}`:'—',
-                    cI>0?`IQD ${fmtIQD(cI)}`:'—', cU>0?`$${cU.toFixed(2)}`:'—',
-                    `IQD ${fmtIQD(rI+sv+dI+cI)}`, `$${(rU+dU+cU).toFixed(2)}`]);
+                    totalCashIQD>0?`IQD ${fmtIQD(totalCashIQD)}`:'—',
+                    totalCashUSD>0?`$${totalCashUSD.toFixed(2)}`:'—',
+                    totalCardIQD>0?`IQD ${fmtIQD(totalCardIQD)}`:'—',
+                    sv>0?`IQD ${fmtIQD(sv)}`:'—']);
             });
-            rows.push([],['','TOTALS','','','',`IQD ${fmtIQD(tRI)}`,`$${tRU.toFixed(2)}`,`IQD ${fmtIQD(tS)}`,`IQD ${fmtIQD(tDI)}`,`$${tDU.toFixed(2)}`,`IQD ${fmtIQD(tCDI)}`,`$${tCDU.toFixed(2)}`,`IQD ${fmtIQD(tRI+tS+tDI+tCDI)}`,`$${(tRU+tDU+tCDU).toFixed(2)}`]);
-            addSheet('Revenue by Room', rows, [4,10,14,6,6,16,12,14,14,12,14,12,14,12]);
+            rows.push([],['','TOTALS','','','',`IQD ${fmtIQD(tCashIQD)}`,`$${tCashUSD.toFixed(2)}`,`IQD ${fmtIQD(tCardIQD)}`,`IQD ${fmtIQD(tS)}`]);
+            addSheet('Revenue by Room', rows, [4,10,14,6,6,18,14,20,22]);
         }
 
         // ── SERVICES (grouped by guest/room) ──
@@ -4884,7 +4852,6 @@ function createStyledWorkbook(period, startDate, endDate, filteredGuests, filter
     } else {
         orderData.push(["No orders in this period"]);
     }
-
     const orderWs = XLSX.utils.aoa_to_sheet(orderData);
     orderWs['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, orderWs, "Orders");
