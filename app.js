@@ -914,9 +914,14 @@ function displayRooms(rooms) {
                     <h3 class="text-2xl font-bold text-gray-800">${t('room_prefix')} ${room.number}</h3>
                     <p class="text-gray-600 text-sm">${room.type} - ${t('floor_prefix')} ${room.floor}</p>
                 </div>
-                <span class="badge" style="background:${cfg.color}20;color:${cfg.color};">
-                    <i class="fas fa-circle text-xs mr-1"></i>${statusLabel}
-                </span>
+                <div class="flex items-center gap-2">
+                    <span class="badge" style="background:${cfg.color}20;color:${cfg.color};">
+                        <i class="fas fa-circle text-xs mr-1"></i>${statusLabel}
+                    </span>
+                    <button onclick="deleteRoom(${room.id});event.stopPropagation();" style="background:none;border:none;cursor:pointer;color:#ef4444;padding:2px 4px;border-radius:4px;" title="Delete Room">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
             </div>
             <div class="mb-4">
                 <p class="text-2xl font-bold text-green-600">$${room.price}</p>
@@ -939,6 +944,20 @@ function displayRooms(rooms) {
     });
 }
 
+
+function deleteRoom(roomId) {
+    const room = hotelData.rooms.find(r => r.id === roomId);
+    if (!room) return;
+    if (room.status === 'occupied') {
+        showToast('Cannot delete an occupied room. Check out the guest first.', 'error');
+        return;
+    }
+    if (!confirm(`Delete Room ${room.number}? This cannot be undone.`)) return;
+    hotelData.rooms = hotelData.rooms.filter(r => r.id !== roomId);
+    saveDataToStorage();
+    showToast(`Room ${room.number} deleted.`, 'success');
+    loadRoomsPage();
+}
 
 // ==================== CHECK IN ====================
 function loadCheckInPage() {
@@ -2288,6 +2307,12 @@ function updateReportsStats() {
     const purchIQD = purchases.reduce((s, p) => s + (p.priceIQD != null ? p.priceIQD : (p.price || 0)), 0);
     const purchUSD = purchases.reduce((s, p) => s + (p.priceUSD || 0), 0);
 
+    // Outside income
+    const oiAll = hotelData.outsideIncome || [];
+    const oi = _reportDateFrom ? oiAll.filter(p => inRange(p.date)) : oiAll;
+    const oiIQD = oi.reduce((s, p) => s + (p.priceIQD || 0), 0);
+    const oiUSD = oi.reduce((s, p) => s + (p.priceUSD || 0), 0);
+
     const occupiedRooms = hotelData.rooms.filter(r => r.status === 'occupied').length;
     const occupancyRate = hotelData.rooms.length > 0 ? ((occupiedRooms / hotelData.rooms.length) * 100).toFixed(1) : 0;
 
@@ -2296,10 +2321,11 @@ function updateReportsStats() {
     document.getElementById('totalIncomeCardIQDReport').textContent = `IQD ${fmtIQD(cardIQD)}`;
     document.getElementById('totalPurchasesIQDReport').textContent = `IQD ${fmtIQD(purchIQD)}`;
     document.getElementById('totalPurchasesUSDReport').textContent = `$${fmtUSD(purchUSD)}`;
-    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(cashIQD + cardIQD - purchIQD)}`;
-    document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(cashUSD - purchUSD)}`;
+    document.getElementById('outsideIncomeIQDReport').textContent = `IQD ${fmtIQD(oiIQD)}`;
+    document.getElementById('outsideIncomeUSDReport').textContent = `$${fmtUSD(oiUSD)}`;
+    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(cashIQD + cardIQD + oiIQD - purchIQD)}`;
+    document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(cashUSD + oiUSD - purchUSD)}`;
     document.getElementById('occupancyRateReport').textContent = `${occupancyRate}%`;
-    document.getElementById('totalGuestsReport').textContent = totalGuests;
 
     populateRoomReportTable();
     populateReservationHistoryTable();
