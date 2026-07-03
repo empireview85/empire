@@ -548,6 +548,8 @@ let hotelData = {
     shiftLog: [],
     reservationLog: [],
     incomeResets: [],
+    outsideIncomeResets: [],
+    purchasesResets: [],
     users: [
         { id: 1, name: 'Admin', email: 'admin@hotel.com', password: 'admin123', role: 'admin' }
     ]
@@ -2547,22 +2549,13 @@ function updateDashboardStats() {
 
     const dashCard5 = document.getElementById('dashCard5');
 
-    // Outside income totals (all-time)
-    const oiAll = hotelData.outsideIncome || [];
-    const oiIQD = oiAll.reduce((s, p) => s + (p.priceIQD || 0), 0);
-    const oiUSD = oiAll.reduce((s, p) => s + (p.priceUSD || 0), 0);
-    _set('dashOutsideIncomeIQD', `IQD ${fmtIQD(oiIQD)}`);
-    _set('dashOutsideIncomeUSD', `$${fmtUSD(oiUSD)}`);
-
-    // Purchases totals (all-time)
-    const purchAll = hotelData.purchases || [];
-    const purchIQD = purchAll.reduce((s, p) => s + (p.priceIQD != null ? p.priceIQD : (p.price || 0)), 0);
-    const purchUSD = purchAll.reduce((s, p) => s + (p.priceUSD || 0), 0);
-    _set('dashPurchasesIQD', `IQD ${fmtIQD(purchIQD)}`);
-    _set('dashPurchasesUSD', `$${fmtUSD(purchUSD)}`);
+    const oiCard    = document.getElementById('dashOutsideIncomeCard');
+    const purchCard = document.getElementById('dashPurchasesCard');
 
     if (isReception) {
-        // Reception cares about cleaning workload, not money — swap card 3 accordingly.
+        // Reception: hide financial cards, show cleaning workload on card 3
+        if (oiCard)    oiCard.style.display    = 'none';
+        if (purchCard) purchCard.style.display  = 'none';
         const cleaningCount = hotelData.rooms.filter(r => r.status === 'cleaning').length;
         _set('dashCard3Label', t('status_cleaning') || 'Cleaning');
         _set('totalIncomeCount', cleaningCount);
@@ -2573,6 +2566,34 @@ function updateDashboardStats() {
         if (resetBtn) resetBtn.style.display = 'none';
         if (dashCard5) dashCard5.style.display = 'none';
     } else {
+        if (oiCard)    oiCard.style.display    = '';
+        if (purchCard) purchCard.style.display  = '';
+
+        // Outside income with reset baseline
+        const oiAllArr  = hotelData.outsideIncome || [];
+        const oiAllIQD  = oiAllArr.reduce((s, p) => s + (p.priceIQD || 0), 0);
+        const oiAllUSD  = oiAllArr.reduce((s, p) => s + (p.priceUSD || 0), 0);
+        const oiResets  = hotelData.outsideIncomeResets || [];
+        const lastOiR   = oiResets.length > 0 ? oiResets[oiResets.length - 1] : null;
+        const oiIQD     = oiAllIQD - (lastOiR ? lastOiR.iqd : 0);
+        const oiUSD     = oiAllUSD - (lastOiR ? lastOiR.usd : 0);
+        _set('dashOutsideIncomeIQD', `IQD ${fmtIQD(oiIQD)}`);
+        _set('dashOutsideIncomeUSD', `$${fmtUSD(oiUSD)}`);
+        const oiSince = document.getElementById('dashOISinceLabel');
+        if (oiSince) oiSince.textContent = lastOiR ? `Since ${new Date(lastOiR.resetAt).toLocaleDateString()}` : 'All-time total';
+
+        // Purchases with reset baseline
+        const purchAllArr  = hotelData.purchases || [];
+        const purchAllIQD  = purchAllArr.reduce((s, p) => s + (p.priceIQD != null ? p.priceIQD : (p.price || 0)), 0);
+        const purchAllUSD  = purchAllArr.reduce((s, p) => s + (p.priceUSD || 0), 0);
+        const purchResets  = hotelData.purchasesResets || [];
+        const lastPurchR   = purchResets.length > 0 ? purchResets[purchResets.length - 1] : null;
+        const purchIQD     = purchAllIQD - (lastPurchR ? lastPurchR.iqd : 0);
+        const purchUSD     = purchAllUSD - (lastPurchR ? lastPurchR.usd : 0);
+        _set('dashPurchasesIQD', `IQD ${fmtIQD(purchIQD)}`);
+        _set('dashPurchasesUSD', `$${fmtUSD(purchUSD)}`);
+        const purchSince = document.getElementById('dashPurchSinceLabel');
+        if (purchSince) purchSince.textContent = lastPurchR ? `Since ${new Date(lastPurchR.resetAt).toLocaleDateString()}` : 'All-time total';
         const all = calculateTotalIncomeByMethod();
         const resets = hotelData.incomeResets || [];
         const lastReset = resets.length > 0 ? resets[resets.length - 1] : null;
@@ -2609,6 +2630,30 @@ function resetDashboardIncome() {
     saveDataToStorage();
     updateDashboardStats();
     showToast('Income counter reset to zero. All data preserved in database.', 'success');
+}
+
+function resetDashboardOutsideIncome() {
+    if (!confirm('Reset the Outside Income counter to zero?\n\nAll data stays in the database — only the display resets.')) return;
+    const arr = hotelData.outsideIncome || [];
+    const iqd = arr.reduce((s, p) => s + (p.priceIQD || 0), 0);
+    const usd = arr.reduce((s, p) => s + (p.priceUSD || 0), 0);
+    if (!Array.isArray(hotelData.outsideIncomeResets)) hotelData.outsideIncomeResets = [];
+    hotelData.outsideIncomeResets.push({ iqd, usd, resetAt: new Date().toISOString(), resetBy: loggedInUser?.name || '—' });
+    saveDataToStorage();
+    updateDashboardStats();
+    showToast('Outside Income counter reset to zero. All data preserved in database.', 'success');
+}
+
+function resetDashboardPurchases() {
+    if (!confirm('Reset the Purchases counter to zero?\n\nAll data stays in the database — only the display resets.')) return;
+    const arr = hotelData.purchases || [];
+    const iqd = arr.reduce((s, p) => s + (p.priceIQD != null ? p.priceIQD : (p.price || 0)), 0);
+    const usd = arr.reduce((s, p) => s + (p.priceUSD || 0), 0);
+    if (!Array.isArray(hotelData.purchasesResets)) hotelData.purchasesResets = [];
+    hotelData.purchasesResets.push({ iqd, usd, resetAt: new Date().toISOString(), resetBy: loggedInUser?.name || '—' });
+    saveDataToStorage();
+    updateDashboardStats();
+    showToast('Purchases counter reset to zero. All data preserved in database.', 'success');
 }
 
 function updateDashboardCharts() {
@@ -5109,9 +5154,7 @@ function loadPurchasesPage() {
             <td>${p.notes || '—'}</td>
             <td>${date}</td>
             <td>
-                <button class="btn btn-danger btn-sm" onclick="deletePurchase(${i})">
-                    <i class="fas fa-trash"></i>
-                </button>
+                ${loggedInUser?.role === 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deletePurchase(${i})"><i class="fas fa-trash"></i></button>` : ''}
             </td>
         </tr>`;
     }).join('');
@@ -5167,9 +5210,7 @@ function loadOutsideIncomePage() {
             <td>${p.notes || '—'}</td>
             <td>${date}</td>
             <td>
-                <button class="btn btn-danger btn-sm" onclick="deleteOutsideIncome(${i})">
-                    <i class="fas fa-trash"></i>
-                </button>
+                ${loggedInUser?.role === 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteOutsideIncome(${i})"><i class="fas fa-trash"></i></button>` : ''}
             </td>
         </tr>`;
     }).join('');
@@ -5294,8 +5335,10 @@ function fbMerge(fbData) {
         guests:     toArr(fbData.guests).map(g => ({ ...g, orders: toArr(g.orders) })),
         activities:     toArr(fbData.activities),
         purchases:      toArr(fbData.purchases),
-        outsideIncome:  toArr(fbData.outsideIncome),
-        incomeResets:   toArr(fbData.incomeResets),
+        outsideIncome:       toArr(fbData.outsideIncome),
+        incomeResets:        toArr(fbData.incomeResets),
+        outsideIncomeResets: toArr(fbData.outsideIncomeResets),
+        purchasesResets:     toArr(fbData.purchasesResets),
         shiftLog:       toArr(fbData.shiftLog),
         reservationLog: toArr(fbData.reservationLog),
         users:          toArr(fbData.users),
