@@ -547,6 +547,7 @@ let hotelData = {
     outsideIncome: [],
     shiftLog: [],
     reservationLog: [],
+    incomeResets: [],
     users: [
         { id: 1, name: 'Admin', email: 'admin@hotel.com', password: 'admin123', role: 'admin' }
     ]
@@ -2546,39 +2547,68 @@ function updateDashboardStats() {
 
     const dashCard5 = document.getElementById('dashCard5');
 
+    // Outside income totals (all-time)
+    const oiAll = hotelData.outsideIncome || [];
+    const oiIQD = oiAll.reduce((s, p) => s + (p.priceIQD || 0), 0);
+    const oiUSD = oiAll.reduce((s, p) => s + (p.priceUSD || 0), 0);
+    _set('dashOutsideIncomeIQD', `IQD ${fmtIQD(oiIQD)}`);
+    _set('dashOutsideIncomeUSD', `$${fmtUSD(oiUSD)}`);
+
+    // Purchases totals (all-time)
+    const purchAll = hotelData.purchases || [];
+    const purchIQD = purchAll.reduce((s, p) => s + (p.priceIQD != null ? p.priceIQD : (p.price || 0)), 0);
+    const purchUSD = purchAll.reduce((s, p) => s + (p.priceUSD || 0), 0);
+    _set('dashPurchasesIQD', `IQD ${fmtIQD(purchIQD)}`);
+    _set('dashPurchasesUSD', `$${fmtUSD(purchUSD)}`);
+
     if (isReception) {
-        // Reception cares about cleaning workload, not money — swap cards 3/4 accordingly.
+        // Reception cares about cleaning workload, not money — swap card 3 accordingly.
         const cleaningCount = hotelData.rooms.filter(r => r.status === 'cleaning').length;
-        const checkoutCount = hotelData.rooms.filter(r => r.status === 'checkout').length;
         _set('dashCard3Label', t('status_cleaning') || 'Cleaning');
         _set('totalIncomeCount', cleaningCount);
         _set('totalIncomeCountIQD', '');
         _set('totalIncomeCountCardIQD', '');
-        _set('dashCard4Label', t('status_checkout') || 'Checkout');
-        _set('guestsTodayCount', checkoutCount);
         setCardIcon('dashCard3Icon', 'dashCard3IconBg', 'dashCard3', 'fas fa-broom', '#3b82f6', '#dbeafe', '#3b82f6');
-        setCardIcon('dashCard4Icon', 'dashCard4IconBg', 'dashCard4', 'fas fa-door-open', '#dc2626', '#fee2e2', '#dc2626');
+        const resetBtn = document.getElementById('dashIncomeResetBtn');
+        if (resetBtn) resetBtn.style.display = 'none';
         if (dashCard5) dashCard5.style.display = 'none';
     } else {
-        const { cashIQD, cashUSD, cardIQD } = calculateTotalIncomeByMethod();
-        const guestCount = hotelData.guests.filter(g => {
-            const checkIn = new Date(g.checkIn);
-            const today = new Date();
-            return checkIn.toDateString() === today.toDateString();
-        }).length;
+        const all = calculateTotalIncomeByMethod();
+        const resets = hotelData.incomeResets || [];
+        const lastReset = resets.length > 0 ? resets[resets.length - 1] : null;
+        const cashIQD = all.cashIQD - (lastReset ? lastReset.cashIQD : 0);
+        const cashUSD = all.cashUSD - (lastReset ? lastReset.cashUSD : 0);
+        const cardIQD = all.cardIQD - (lastReset ? lastReset.cardIQD : 0);
         _set('dashCard3Label', t('stat_income'));
         _set('totalIncomeCount', `Cash $${fmtUSD(cashUSD)}`);
         _set('totalIncomeCountIQD', `Cash IQD ${fmtIQD(cashIQD)}`);
         _set('totalIncomeCountCardIQD', `MasterCard IQD ${fmtIQD(cardIQD)}`);
-        _set('dashCard4Label', t('stat_guests_today'));
-        _set('guestsTodayCount', guestCount);
+        const sinceEl = document.getElementById('dashIncomeSinceLabel');
+        if (sinceEl) sinceEl.textContent = lastReset ? `Since ${new Date(lastReset.resetAt).toLocaleDateString()}` : 'All-time total';
+        const resetBtn = document.getElementById('dashIncomeResetBtn');
+        if (resetBtn) resetBtn.style.display = '';
         setCardIcon('dashCard3Icon', 'dashCard3IconBg', 'dashCard3', 'fas fa-dollar-sign', '#667eea', '#e0e7ff', '#667eea');
-        setCardIcon('dashCard4Icon', 'dashCard4IconBg', 'dashCard4', 'fas fa-users', '#f59e0b', '#fef3c7', '#f59e0b');
 
         const checkoutCount = hotelData.rooms.filter(r => r.status === 'checkout').length;
         _set('checkoutRoomsCount', checkoutCount);
         if (dashCard5) dashCard5.style.display = '';
     }
+}
+
+function resetDashboardIncome() {
+    if (!confirm('Reset the income counter to zero?\n\nAll data stays in the database — only the display resets. You can see past reset history in the database.')) return;
+    const all = calculateTotalIncomeByMethod();
+    if (!Array.isArray(hotelData.incomeResets)) hotelData.incomeResets = [];
+    hotelData.incomeResets.push({
+        cashIQD: all.cashIQD,
+        cashUSD: all.cashUSD,
+        cardIQD: all.cardIQD,
+        resetAt: new Date().toISOString(),
+        resetBy: loggedInUser?.name || '—'
+    });
+    saveDataToStorage();
+    updateDashboardStats();
+    showToast('Income counter reset to zero. All data preserved in database.', 'success');
 }
 
 function updateDashboardCharts() {
@@ -3976,9 +4006,12 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
     let resCashIQD = 0, resCashUSD = 0, resCardIQD = 0;
     reservesToday.forEach(e => { resCashIQD += e.depositCashIQD||0; resCashUSD += e.depositCashUSD||0; resCardIQD += e.depositCardIQD||0; });
 
-    // Services for still-active guests counted separately (checked-out services already in coCashIQD/coCardIQD)
-    const svcActiveIQD = servicesToday.filter(s => !s.isCheckedOut).reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
-    const svcTotalIQD  = servicesToday.reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
+    // Services for checked-out guests are already embedded in coCashIQD/coCardIQD (checkout payment covers room + services).
+    // Services for still-active guests are NOT counted in the vault total — money hasn't been collected yet.
+    const svcPendingIQD    = servicesToday.filter(s => !s.isCheckedOut).reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
+    const svcTotalIQD      = servicesToday.reduce((sum, s) => sum + (s.order.price||0)*(s.order.quantity||1), 0);
+    // Service amounts collected at checkout (stored per-guest at checkout time, already inside coCashIQD/coCardIQD)
+    const svcCheckedOutIQD = checkOutsToday.reduce((sum, g) => sum + (g.serviceAmountIQD || 0), 0);
 
     // Outside income added by this staff member during this shift
     const outsideIncomeToday = (hotelData.outsideIncome || []).filter(p => inShift(p.date) && byMe(p.addedBy));
@@ -3993,7 +4026,7 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
     const purchIQD = purchasesToday.reduce((sum, p) => sum + (p.priceIQD != null ? p.priceIQD : (p.price||0)), 0);
     const purchUSD = purchasesToday.reduce((sum, p) => sum + (p.priceUSD||0), 0);
 
-    const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + svcActiveIQD + oiIQD + adCashIQD + adCardIQD - purchIQD;
+    const grandIQD = ciCashIQD + ciCardIQD + coCashIQD + coCardIQD + resCashIQD + resCardIQD + oiIQD + adCashIQD + adCardIQD - purchIQD;
     const grandUSD = ciCashUSD + coCashUSD + resCashUSD + oiUSD + adCashUSD - purchUSD;
     const dateStr  = `${shiftStart.getFullYear()}-${pad(shiftStart.getMonth()+1)}-${pad(shiftStart.getDate())}`;
 
@@ -4073,10 +4106,10 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         if (servicesToday.length) {
             servicesToday.forEach((s, i) => {
                 const o = s.order, tot = (o.price||0)*(o.quantity||1);
-                h += drow([i+1, s.guestName||'—', `Room ${s.roomNum}`, o.name||'—', o.quantity||1, o.price>0?`IQD ${fmtIQD(o.price)}`:'—', tot>0?`IQD ${fmtIQD(tot)}`:'—', s.isCheckedOut?'In checkout balance':'Collected (active room)'], i);
+                h += drow([i+1, s.guestName||'—', `Room ${s.roomNum}`, o.name||'—', o.quantity||1, o.price>0?`IQD ${fmtIQD(o.price)}`:'—', tot>0?`IQD ${fmtIQD(tot)}`:'—', s.isCheckedOut?'✓ Counted (in checkout payment)':'⏳ Pending — billed at checkout'], i);
             });
         } else { h += empty('No services today', 8); }
-        h += sub(['','','','','','TOTAL (all)', `IQD ${fmtIQD(svcTotalIQD)}`, `Active rooms: IQD ${fmtIQD(svcActiveIQD)}`]);
+        h += sub(['','','','','','TOTAL (all)', `IQD ${fmtIQD(svcTotalIQD)}`, `Pending (not counted): IQD ${fmtIQD(svcPendingIQD)}`]);
         h += `<tr><td colspan="8" style="padding:6px;"></td></tr>`;
 
         // OUTSIDE INCOME
@@ -4121,11 +4154,15 @@ function downloadShiftReport(autoExcel = false, shiftId = null, monthKey = null,
         h += vrow('Check-in Deposits (MasterCard)',    `IQD ${fmtIQD(ciCardIQD)}`,  '—');
         h += vrow('Check-out Payments (Cash)',         `IQD ${fmtIQD(coCashIQD)}`,  `$${fmtUSD(coCashUSD)}`);
         h += vrow('Check-out Payments (MasterCard)',   `IQD ${fmtIQD(coCardIQD)}`,  '—');
+        h += `<tr>
+            <td colspan="4" style="padding:6px 10px 6px 24px;background:#f0fdf4;color:#166534;font-style:italic;font-size:12px;">↳ of which: Services (included in checkout above)</td>
+            <td colspan="2" style="padding:6px 10px;background:#f0fdf4;color:#166534;font-style:italic;font-size:12px;text-align:right;">IQD ${fmtIQD(svcCheckedOutIQD)}</td>
+            <td colspan="2" style="padding:6px 10px;background:#f0fdf4;color:#166534;font-style:italic;font-size:12px;text-align:right;">—</td>
+        </tr>`;
         h += vrow('Reservation Deposits (Cash)',       `IQD ${fmtIQD(resCashIQD)}`, `$${fmtUSD(resCashUSD)}`);
         h += vrow('Reservation Deposits (MasterCard)', `IQD ${fmtIQD(resCardIQD)}`, '—');
         h += vrow('Additional Deposits (Cash)',        `IQD ${fmtIQD(adCashIQD)}`,  `$${fmtUSD(adCashUSD)}`);
         h += vrow('Additional Deposits (MasterCard)',  `IQD ${fmtIQD(adCardIQD)}`,  '—');
-        h += vrow('Services (Active Rooms)',           `IQD ${fmtIQD(svcActiveIQD)}`,'—');
         h += vrow('Outside Income',                   `IQD ${fmtIQD(oiIQD)}`,       `$${fmtUSD(oiUSD)}`);
         h += vneg('Purchases (Deducted)',              purchIQD>0?`- IQD ${fmtIQD(purchIQD)}`:'—', purchUSD>0?`- $${fmtUSD(purchUSD)}`:'—');
         h += `<tr><td colspan="8" style="padding:4px;"></td></tr>`;
@@ -5258,6 +5295,7 @@ function fbMerge(fbData) {
         activities:     toArr(fbData.activities),
         purchases:      toArr(fbData.purchases),
         outsideIncome:  toArr(fbData.outsideIncome),
+        incomeResets:   toArr(fbData.incomeResets),
         shiftLog:       toArr(fbData.shiftLog),
         reservationLog: toArr(fbData.reservationLog),
         users:          toArr(fbData.users),
